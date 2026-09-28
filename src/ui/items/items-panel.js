@@ -10,9 +10,11 @@ import { validateItem } from '../../engine/items/validate-item.js';
 import { computeItemInteractions } from '../../engine/items/interactions.js';
 import { applyModifierToItem } from '../../engine/items/modifiers.js';
 
-// A couple of representative test modifiers to demonstrate the base+modifier system live — not
-// the final modifier pool (that's its own future authoring pass), just enough to prove
-// applyModifierToItem works against real data in the browser.
+// TEMPORARY placeholders, not the real modifier pool — just enough to prove applyModifierToItem
+// works against real data in the browser. PAUSED: see the "PENDING: real modifier pool" comment
+// block at the top of modifiers.js for the full audited catalog (enhancement tiers, materials,
+// elemental damage, masterwork, triggered bolt-ons) and the open schema question blocking it.
+// Replace this list once that's resolved, don't extend it in the meantime.
 const PREVIEW_MODIFIERS = [
   { id: 'plus-one', name: '+1', appliesTo: ['weapon', 'armor'], rarity: 'uncommon',
     passiveMods: [{ stat: 'attackRoll', value: 1 }, { stat: 'damageRoll', value: 1 }], nameTemplate: '{base} +1' },
