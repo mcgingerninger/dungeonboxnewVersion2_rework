@@ -51,13 +51,11 @@ function readJsonBody(req) {
   });
 }
 
-// Phase 6a of the migration (see docs/MIGRATION_PLAN.md, docs/ARCHITECTURE.md): static file
-// serving, so the DM's own machine can serve the actual app files (the monolith HTML,
-// multiplayer-sync.js, game-engine.js, loot-data.js, puzzle-data.js) to every device on the LAN,
-// not just answer JSON API requests. Deliberately narrow rather than "serve the whole repo":
+// Static file serving, so the DM's own machine can serve the built frontend (Vite's `dist/`
+// output — see server/start.js's STATIC_ROOT) to every device on the LAN, not just answer JSON
+// API requests. Deliberately narrow rather than "serve the whole repo":
 // - Extension allowlist only. The default sqlite db file (see server/start.js's DB_PATH) lives
-//   at the repo root right alongside the app files; without an allowlist, a naive "serve
-//   whatever exists under the root" would make campaign data fetchable over plain HTTP.
+//   at the repo root, outside STATIC_ROOT — but the allowlist stays as defense-in-depth even so.
 // - GET only, no directory listing, no caching/ETag headers, no gzip — this is a DM's own local
 //   process on a LAN, not a public web server; those are real gaps if this were ever deployed
 //   more broadly, noted here rather than silently assumed out of scope.

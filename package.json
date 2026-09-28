@@ -6,9 +6,17 @@
   "description": "Local-first Dungeon Master Box - architectural migration of dungeon-loot-tool.",
   "scripts": {
     "test": "node --test",
-    "start": "node server/start.js"
+    "start": "node server/start.js",
+    "dev": "vite",
+    "dev:server": "node server/start.js",
+    "dev:all": "concurrently -n vite,server -c blue,green \"npm:dev\" \"npm:dev:server\"",
+    "build": "vite build"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "concurrently": "^9.0.0"
   }
 }

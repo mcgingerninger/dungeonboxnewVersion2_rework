@@ -27,8 +27,7 @@ function lanAddresses() {
 }
 
 const PORT = Number(process.env.PORT) || 4000;
-// The repo root, one level up from this file — where the monolith HTML and its sibling .js
-// files (multiplayer-sync.js, game-engine.js, loot-data.js, puzzle-data.js) live (Phase 6a).
+// The repo root, one level up from this file.
 // import.meta.dirname (not a file:// URL's .pathname) so this is a normal, correctly-formed
 // native path on Windows too (a URL pathname would carry a leading '/' before the drive letter).
 const REPO_ROOT = path.join(import.meta.dirname, '..');
@@ -42,7 +41,10 @@ const REPO_ROOT = path.join(import.meta.dirname, '..');
 // pattern STATIC_ROOT already used) means the database always lives in exactly one predictable
 // place regardless of launch method — DB_PATH can still override this explicitly when needed.
 const DB_PATH = process.env.DB_PATH || path.join(REPO_ROOT, 'dungeon-master-box.db');
-const STATIC_ROOT = process.env.STATIC_ROOT || REPO_ROOT;
+// Points at Vite's build output (`npm run build`), not the repo root — in dev, Vite's own dev
+// server serves the frontend directly (see vite.config.js's proxy setup) and this static path is
+// never hit; it only matters for a production `node server/start.js` run against a built `dist/`.
+const STATIC_ROOT = process.env.STATIC_ROOT || path.join(REPO_ROOT, 'dist');
 
 const db = openDatabase(DB_PATH);
 const server = createServer(db, { staticRoot: STATIC_ROOT });
