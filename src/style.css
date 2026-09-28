@@ -1,0 +1,21 @@
+body { font-family: system-ui, sans-serif; margin: 1.5rem; color: #222; }
+.character-sheet h2 { margin-bottom: 0.25rem; }
+.character-sheet h3 { margin-top: 1.25rem; margin-bottom: 0.4rem; border-bottom: 1px solid #ccc; }
+.cs-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 0.5rem; }
+.cs-row label { display: flex; flex-direction: column; font-size: 0.85rem; gap: 0.2rem; }
+.cs-ability { width: 6rem; text-align: center; }
+.cs-computed { font-weight: bold; color: #145; }
+.cs-dim { color: #888; font-size: 0.8em; }
+table.cs-skills, table.cs-saves { border-collapse: collapse; margin-bottom: 0.5rem; }
+table.cs-skills td, table.cs-skills th, table.cs-saves td, table.cs-saves th {
+  padding: 0.15rem 0.5rem; text-align: left; border-bottom: 1px solid #eee;
+}
+.cs-slot { display: inline-flex; flex-direction: column; align-items: center; font-size: 0.8rem; }
+.cs-slot input { width: 3rem; }
+.cs-trait { border: 1px solid #ddd; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 4px; }
+.cs-trait input[type="text"] { margin-right: 0.5rem; }
+.cs-trait-mods { margin: 0.4rem 0; }
+.cs-trait-mod { display: inline-flex; align-items: center; gap: 0.25rem; margin-right: 0.5rem; }
+.cs-empty { color: #888; font-style: italic; }
+.cs-save-row { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; }
+#cs-status { color: #145; }

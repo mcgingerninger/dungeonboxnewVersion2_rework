@@ -69,10 +69,11 @@ export function touchCampaign(db, id) {
 
 // ---------- Characters ----------
 // `sheet` mirrors the shape of the relevant slice of the old localStorage blob: abilityScores
-// ({str,dex,con,int,wis,cha}), level, skillProficiencies, saveProficiencies, currentHp, maxHp,
-// maxHpEffective, hitDice, ac, class. Every field is optional and falls back to the schema's
-// column default, matching applyStateBlob's existing "only overwrite what's actually present"
-// behavior rather than requiring a full sheet on every call.
+// ({str,dex,con,int,wis,cha}), level, skillProficiencies, skillExpertise, saveProficiencies,
+// currentHp, maxHp, maxHpEffective, hitDieSize, ac, class, spellSlotsMax, spellSlotsUsed, traits.
+// Every field is optional and falls back to the schema's column default, matching
+// applyStateBlob's existing "only overwrite what's actually present" behavior rather than
+// requiring a full sheet on every call.
 const ABILITY_COLUMN = { str: 'strength', dex: 'dexterity', con: 'constitution', int: 'intelligence', wis: 'wisdom', cha: 'charisma' };
 
 export function upsertCharacter(db, campaignId, accountUid, sheet = {}) {
@@ -82,7 +83,7 @@ export function upsertCharacter(db, campaignId, accountUid, sheet = {}) {
     username: sheet.username,
     class: sheet.class,
     level: sheet.level,
-    hit_dice: sheet.hitDice,
+    hit_die_size: sheet.hitDieSize,
     strength: abilityScores.str,
     dexterity: abilityScores.dex,
     constitution: abilityScores.con,
@@ -94,7 +95,11 @@ export function upsertCharacter(db, campaignId, accountUid, sheet = {}) {
     max_hp_effective: sheet.maxHpEffective,
     ac: sheet.ac,
     skill_proficiencies: sheet.skillProficiencies ? JSON.stringify(sheet.skillProficiencies) : undefined,
+    skill_expertise: sheet.skillExpertise ? JSON.stringify(sheet.skillExpertise) : undefined,
     save_proficiencies: sheet.saveProficiencies ? JSON.stringify(sheet.saveProficiencies) : undefined,
+    spell_slots_max: sheet.spellSlotsMax ? JSON.stringify(sheet.spellSlotsMax) : undefined,
+    spell_slots_used: sheet.spellSlotsUsed ? JSON.stringify(sheet.spellSlotsUsed) : undefined,
+    traits: sheet.traits ? JSON.stringify(sheet.traits) : undefined,
   };
   if (existing) {
     const sets = [];
@@ -129,7 +134,7 @@ function rowToSheet(row) {
     username: row.username,
     class: row.class,
     level: row.level,
-    hitDice: row.hit_dice,
+    hitDieSize: row.hit_die_size,
     abilityScores: {
       str: row.strength, dex: row.dexterity, con: row.constitution,
       int: row.intelligence, wis: row.wisdom, cha: row.charisma,
@@ -139,7 +144,11 @@ function rowToSheet(row) {
     maxHpEffective: row.max_hp_effective,
     ac: row.ac,
     skillProficiencies: JSON.parse(row.skill_proficiencies),
+    skillExpertise: JSON.parse(row.skill_expertise),
     saveProficiencies: JSON.parse(row.save_proficiencies),
+    spellSlotsMax: JSON.parse(row.spell_slots_max),
+    spellSlotsUsed: JSON.parse(row.spell_slots_used),
+    traits: JSON.parse(row.traits),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

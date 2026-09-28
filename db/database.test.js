@@ -74,16 +74,23 @@ describe('characters', () => {
     const db = openDatabase(':memory:');
     const campaign = createCampaign(db, 'Test');
     const sheet = upsertCharacter(db, campaign.id, 'uid-1', {
-      username: 'Kaelen', class: 'Ranger', level: 5, hitDice: '5d10',
+      username: 'Kaelen', class: 'Ranger', level: 5, hitDieSize: 10,
       abilityScores: { str: 14, dex: 16, con: 12, int: 10, wis: 13, cha: 8 },
       currentHp: 38, maxHp: 42, maxHpEffective: 43, ac: 15,
-      skillProficiencies: ['Stealth', 'Survival'], saveProficiencies: ['Dexterity', 'Strength'],
+      skillProficiencies: ['Stealth', 'Survival'], skillExpertise: ['Stealth'],
+      saveProficiencies: ['dex', 'str'],
+      spellSlotsMax: { 1: 4, 2: 3 }, spellSlotsUsed: { 1: 1 },
+      traits: [{ id: 'darkvision', name: 'Darkvision', description: 'See in dim light as if bright.', statMods: [] }],
     });
     assert.equal(sheet.username, 'Kaelen');
     assert.equal(sheet.level, 5);
+    assert.equal(sheet.hitDieSize, 10);
     assert.deepEqual(sheet.abilityScores, { str: 14, dex: 16, con: 12, int: 10, wis: 13, cha: 8 });
     assert.equal(sheet.maxHpEffective, 43);
     assert.deepEqual(sheet.skillProficiencies, ['Stealth', 'Survival']);
+    assert.deepEqual(sheet.skillExpertise, ['Stealth']);
+    assert.deepEqual(sheet.spellSlotsMax, { 1: 4, 2: 3 });
+    assert.equal(sheet.traits[0].name, 'Darkvision');
   });
 
   test('upsertCharacter on an existing character only overwrites the fields provided', () => {

@@ -38,6 +38,18 @@ CREATE TABLE IF NOT EXISTS campaigns (
 -- Column names match game-engine.js's ABILITY_NAMES full names (Strength, Dexterity, ...)
 -- rather than the app's str/dex/con abbreviations, so the mapping to computeCharacterSheetFor's
 -- abilityScores argument is unambiguous.
+-- Phase 2 of the mechanics rebuild (see the approved rebuild plan) replaced the old freeform
+-- 'hit_dice' TEXT label (e.g. "5d10" — display-only, nothing derived from it) with a structured
+-- 'hit_die_size' (6/8/10/12, no class table) that src/engine/character/hp.js actually computes
+-- max_hp from, alongside level and the Constitution modifier. max_hp/max_hp_effective/ac are
+-- still stored columns (not computed on every read) but are meant to be written by that engine
+-- computation, not typed in directly — enforced at the UI layer, same as before.
+-- skill_expertise is separate from skill_proficiencies (double proficiency bonus vs. single).
+-- spell_slots_max/spell_slots_used are per-level JSON maps ({"1":2,"2":1,...}), DM/player-set
+-- directly rather than derived from a class table, matching how the prior app already modeled
+-- spell slots. traits is a JSON array of {id, name, description, statMods:[{stat, value}]} —
+-- structured with real mechanical effects (confirmed with the user), consumed by
+-- computeDerivedSheet the same way item passive effects will consume their own statMods later.
 CREATE TABLE IF NOT EXISTS characters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -45,7 +57,7 @@ CREATE TABLE IF NOT EXISTS characters (
   username TEXT,
   class TEXT,
   level INTEGER NOT NULL DEFAULT 1,
-  hit_dice TEXT,
+  hit_die_size INTEGER NOT NULL DEFAULT 8,
   strength INTEGER NOT NULL DEFAULT 10,
   dexterity INTEGER NOT NULL DEFAULT 10,
   constitution INTEGER NOT NULL DEFAULT 10,
@@ -57,7 +69,11 @@ CREATE TABLE IF NOT EXISTS characters (
   max_hp_effective INTEGER NOT NULL DEFAULT 10,
   ac INTEGER NOT NULL DEFAULT 10,
   skill_proficiencies TEXT NOT NULL DEFAULT '[]',
+  skill_expertise TEXT NOT NULL DEFAULT '[]',
   save_proficiencies TEXT NOT NULL DEFAULT '[]',
+  spell_slots_max TEXT NOT NULL DEFAULT '{}',
+  spell_slots_used TEXT NOT NULL DEFAULT '{}',
+  traits TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(campaign_id, account_uid)
