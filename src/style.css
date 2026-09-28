@@ -35,3 +35,7 @@ table.combat-roster td, table.combat-roster th { padding: 0.25rem 0.6rem; text-a
 .combat-attack-row label { display: flex; flex-direction: column; font-size: 0.85rem; }
 .combat-log { list-style: none; padding: 0; max-width: 40rem; }
 .combat-log li { padding: 0.2rem 0; border-bottom: 1px solid #f0f0f0; }
+
+table.items-table { border-collapse: collapse; width: 100%; }
+table.items-table td, table.items-table th { padding: 0.35rem 0.6rem; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; font-size: 0.9rem; }
+.items-invalid { color: #b00; font-weight: bold; font-size: 0.8em; }
