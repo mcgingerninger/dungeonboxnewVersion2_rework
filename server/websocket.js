@@ -656,8 +656,8 @@ export function createWebSocketServer(db, httpServer) {
         }
 
         const logLine = result.isHit
-          ? `${attackerEntry.name} attacks ${targetEntry.name}: ${result.tier} for ${result.damage.total} ${result.damageType || ''}`.trim()
-          : `${attackerEntry.name} attacks ${targetEntry.name}: ${result.tier}`;
+          ? `${attackerEntry.name} attacks ${targetEntry.name}: ${result.outcome} for ${result.damage.total} ${result.damageType || ''}`.trim()
+          : `${attackerEntry.name} attacks ${targetEntry.name}: ${result.outcome}`;
         const log = [...(combat.log || []), { message: logLine, result }].slice(-50);
         saveSubsystemState(db, identity.campaignId, 'combat', { active: !!combat.active, roundNumber: combat.roundNumber || 0, roster, log });
         broadcastToRoom(identity.campaignId, { type: 'combat_state_update', ...buildCombatRosterView(identity.campaignId) });

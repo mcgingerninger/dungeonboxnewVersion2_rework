@@ -9,23 +9,8 @@
 // (damageDice, damageType, and either attackAbility+proficient or a flat toHitBonus/damageBonus
 // straight off a stat block) — real weapons plug into the same shape once items exist.
 
-import { rollD20, rollDamage, rollInt, parseDiceNotation } from '../dice/dice.js';
+import { rollD20, rollDamage } from '../dice/dice.js';
 import { abilityModifier } from '../character/ability-scores.js';
-
-// Revives the old app's battleEffectivenessLabel concept (Devastating/Strong/Moderate/Weak/
-// Critical-Failure tiers) but fixes its core flaw: that label graded the raw d20 alone,
-// completely ignoring the target's AC. Here the tier is driven by `margin` — how far the total
-// roll (d20 + modifiers) actually clears or misses the target's AC — so it's a real function of
-// dice, modifiers, and AC together, and drives a concrete damage modifier rather than being a
-// cosmetic label. Thresholds/modifiers are a first-pass tuning (confirmed as a "starting draft,
-// tune later" in the rebuild plan) — easy to adjust here without touching resolveAttack itself.
-export const EFFECT_TIERS = [
-  { min: 15, label: 'Devastating Hit', bonusDice: 2, flatMod: 0 },
-  { min: 10, label: 'Strong Hit', bonusDice: 1, flatMod: 0 },
-  { min: 5, label: 'Solid Hit', bonusDice: 0, flatMod: 0 },
-  { min: 0, label: 'Weak Hit', bonusDice: 0, flatMod: -2 },
-  { min: -Infinity, label: 'Miss', bonusDice: 0, flatMod: 0 },
-];
 
 // Matches this project's own prior "1d6 + STR" unarmed strike convention (see the old app's
 // rollUnarmedAttack button tooltip) rather than strict RAW 5e's flat 1 + STR — kept for
@@ -63,6 +48,17 @@ export function getDamageBonus(attacker, weaponOrAction) {
 }
 
 /**
+ * Standard d20-plus-modifiers vs. AC (the old/original combat system, confirmed with the user
+ * over the previous, tiered version this replaces): roll d20 + attack bonus, compare to the
+ * target's AC. AC isn't just a pass/fail threshold, though — it acts as a MODIFIER: on an
+ * ordinary hit, however far the roll cleared AC (`margin`) is added straight onto damage as a
+ * +/- number, instead of snapping into discrete named tiers. A natural 1 always fumbles/misses
+ * and a natural 20 always crits (doubles damage dice, the standard rule) regardless of margin,
+ * matching 5e. `margin` is always returned on the result — a future effects system (the
+ * "maybe imparts effects" half of this mechanic) can key off its exact value without any change
+ * here; nothing beyond returning the number is built yet, since that part was explicitly
+ * speculative ("maybe") rather than a confirmed requirement.
+ *
  * @param {Object} params
  * @param {Object} params.attacker  // {abilityScores|abilityModifiers, proficiencyBonus}
  * @param {Object} params.target    // {ac}
@@ -76,27 +72,24 @@ export function resolveAttack({ attacker, target, weaponOrAction, advantage }, r
   const isCrit = toHitRoll === 20;
   const toHitTotal = toHitRoll + getAttackBonus(attacker, weaponOrAction);
   const margin = toHitTotal - target.ac;
-
-  // A fumble always misses regardless of margin; a crit always hits and always grades as the top
-  // tier, regardless of margin — matching 5e's "a nat 20 always hits" rule.
-  const tier = isFumble ? EFFECT_TIERS[EFFECT_TIERS.length - 1]
-    : isCrit ? EFFECT_TIERS[0]
-    : EFFECT_TIERS.find(t => margin >= t.min);
   const isHit = !isFumble && (isCrit || margin >= 0);
+  const outcome = isFumble ? 'Fumble' : isCrit ? 'Critical Hit' : isHit ? 'Hit' : 'Miss';
 
   let damage = null;
   if (isHit) {
-    const parsed = parseDiceNotation(weaponOrAction.damageDice);
     const base = rollDamage(weaponOrAction.damageDice, isCrit, rand);
-    const bonusRolls = [];
-    if (parsed) for (let i = 0; i < tier.bonusDice; i++) bonusRolls.push(rollInt(1, parsed.sides, rand));
     const abilityBonus = getDamageBonus(attacker, weaponOrAction);
-    const total = Math.max(0, (base?.total ?? 0) + bonusRolls.reduce((a, b) => a + b, 0) + tier.flatMod + abilityBonus);
-    damage = { rolls: [...(base?.rolls ?? []), ...bonusRolls], abilityBonus, tierFlatMod: tier.flatMod, total };
+    // A crit's own dice-doubling is the standard, separate 5e mechanic and isn't ALSO scaled by
+    // margin — a natural 20 always hits even against an AC the attacker's bonus alone wouldn't
+    // have cleared, where margin would be negative and misleading to add onto crit damage. An
+    // ordinary hit's margin is already guaranteed >= 0 by the isHit check above.
+    const marginBonus = isCrit ? 0 : margin;
+    const total = Math.max(0, (base?.total ?? 0) + marginBonus + abilityBonus);
+    damage = { rolls: base?.rolls ?? [], marginBonus, abilityBonus, total };
   }
 
   return {
-    toHitRoll, toHitTotal, margin, tier: tier.label,
+    toHitRoll, toHitTotal, margin, outcome,
     isCrit, isFumble, isHit,
     damage, damageType: weaponOrAction.damageType,
   };

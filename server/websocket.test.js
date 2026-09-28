@@ -1309,8 +1309,9 @@ describe('simulate a day (Phase 6k — long rest for every player)', () => {
 });
 
 describe('combat (Phase 3 of the mechanics rebuild)', () => {
-  // An absurdly high attackBonus makes every non-fumble roll land in "Devastating Hit" regardless
-  // of the d20 face — but NOT actually guaranteed to hit: resolveAttack always fumbles on a
+  // An absurdly high attackBonus makes every non-fumble roll a comfortable hit with a large
+  // margin-driven damage bonus, regardless of the d20 face — but NOT actually guaranteed to hit:
+  // resolveAttack always fumbles on a
   // natural 1, unconditionally, regardless of bonuses (matching 5e's "a nat 1 always misses"
   // rule) — a genuine ~5% miss chance on any single attack that these tests can't route around
   // via bonuses alone. Tests that need to observe a hit use attackUntilHit below rather than
