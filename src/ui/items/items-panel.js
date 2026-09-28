@@ -33,8 +33,10 @@ function statsCell(item) {
     const a = item.armor;
     const dexNote = a.addsDexMod ? (a.dexModCap ? ` + Dex (max ${a.dexModCap})` : ' + Dex') : '';
     const passiveAc = (item.passive || []).filter(m => m.stat === 'ac').reduce((s, m) => s + m.value, 0);
-    const label = a.armorType === 'shield' ? `+${a.baseAC + passiveAc} AC` : `AC ${a.baseAC + passiveAc}${dexNote}`;
-    return label;
+    const reqNote = a.strengthRequirement ? `, Str ${a.strengthRequirement}` : '';
+    const stealthNote = a.stealthDisadvantage ? ', Stealth disadv.' : '';
+    const label = a.additive ? `+${a.baseAC + passiveAc} AC` : `AC ${a.baseAC + passiveAc}${dexNote}`;
+    return `${label}${reqNote}${stealthNote}`;
   }
   return '—';
 }

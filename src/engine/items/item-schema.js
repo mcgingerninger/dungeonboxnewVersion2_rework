@@ -77,6 +77,15 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
  * @property {boolean} addsDexMod
  * @property {number} [dexModCap]
  * @property {'helmet'|'chest'|'handwear'|'boots'|'leggings'|'facewear'|'cloak'|'beltwaist'|'shield'} [slot]
+ * @property {number} [strengthRequirement]  // heavy armor typically has one (e.g. "Iron Plate
+ *   Armor" in the old reference data: "Requires 15 Strength or speed is reduced by 10 ft.")
+ * @property {boolean} [stealthDisadvantage]  // heavy armor typically imposes this
+ * @property {boolean} [additive]  // true for a shield or an accessory piece (helm/gauntlets/
+ *   greaves/boots) whose baseAC ADDS to whatever body armor already set (matching the old
+ *   reference data's own "+1 bonus to AC" / "+2 AC" phrasing for those items); absent/false for
+ *   body armor, whose baseAC REPLACES the 10-base formula outright. Was only a prose convention
+ *   ("a shield's baseAC is additive") until the Phase 5 armor batch's accessory pieces (Plate
+ *   Helm/Gauntlets/Greaves/Boots) made it a real, checkable distinction rather than a one-off.
  */
 
 /**

@@ -25,6 +25,16 @@ describe('every base weapon validates cleanly against the real schema', () => {
     assert.ok(categories.has('simple'));
     assert.ok(categories.has('martial'));
   });
+
+  test('covers the full mundane weapon set found in the reference data (9 simple + 5 martial)', () => {
+    const simple = weapons.filter(w => w.weapon.weaponCategory === 'simple');
+    const martial = weapons.filter(w => w.weapon.weaponCategory === 'martial');
+    assert.equal(simple.length, 9);
+    assert.equal(martial.length, 5);
+    for (const id of ['mace', 'battleaxe', 'warhammer', 'club', 'sling', 'small-knife']) {
+      assert.ok(weapons.some(w => w.id === id), `missing ${id}`);
+    }
+  });
 });
 
 describe('interactions apply correctly to real weapon data', () => {
