@@ -16,15 +16,19 @@ import { collectStatMods, sumModifier } from './stat-modifiers.js';
  * @param {Object} character.abilityScores  // {str,dex,con,int,wis,cha}, raw 3-20ish scores
  * @param {number} character.level
  * @param {number} character.hitDieSize     // 6|8|10|12
+ * @param {number} [character.proficiencyBonus]  // directly adjustable; falls back to the
+ *   standard level-derived value ONLY when genuinely absent (undefined/null), never overridden
+ *   when a real value (including 0) is present — an explicit adjustment always wins.
+ * @param {number} [character.speed]        // base walking speed in feet; defaults to 30
  * @param {string[]} [character.skillProficiencies]
  * @param {string[]} [character.skillExpertise]
  * @param {string[]} [character.saveProficiencies]  // ability abbreviations, e.g. ['dex','str']
  * @param {Array<{statMods: Array<{stat:string, value:number}>}>} [character.traits]
- * @returns {{abilityModifiers: Object, proficiencyBonus: number, maxHp: number, ac: number, skillBonuses: Object, saveBonuses: Object}}
+ * @returns {{abilityModifiers: Object, proficiencyBonus: number, maxHp: number, ac: number, effectiveSpeed: number, skillBonuses: Object, saveBonuses: Object}}
  */
 export function computeDerivedSheet(character) {
   const {
-    abilityScores = {}, level = 1, hitDieSize = 8,
+    abilityScores = {}, level = 1, hitDieSize = 8, speed = 30,
     skillProficiencies = [], skillExpertise = [], saveProficiencies = [], traits = [],
   } = character;
 
@@ -33,11 +37,12 @@ export function computeDerivedSheet(character) {
     abilityModifiers[abbr] = abilityModifier(abilityScores[abbr] ?? 10);
   }
 
-  const proficiencyBonus = proficiencyBonusForLevel(level);
+  const proficiencyBonus = character.proficiencyBonus ?? proficiencyBonusForLevel(level);
   const traitStatMods = collectStatMods(traits);
 
   const maxHp = computeMaxHp(level, hitDieSize, abilityModifiers.con) + sumModifier(traitStatMods, 'hp_max');
   const ac = 10 + abilityModifiers.dex + sumModifier(traitStatMods, 'ac');
+  const effectiveSpeed = speed + sumModifier(traitStatMods, 'speed');
 
   const skillBonuses = {};
   for (const [skill, abbr] of Object.entries(SKILL_ABILITY_MAP)) {
@@ -56,5 +61,5 @@ export function computeDerivedSheet(character) {
     saveBonuses[abbr] = bonus;
   }
 
-  return { abilityModifiers, proficiencyBonus, maxHp, ac, skillBonuses, saveBonuses };
+  return { abilityModifiers, proficiencyBonus, maxHp, ac, effectiveSpeed, skillBonuses, saveBonuses };
 }

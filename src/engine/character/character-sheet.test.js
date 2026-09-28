@@ -75,4 +75,37 @@ describe('computeDerivedSheet', () => {
     const sheet = computeDerivedSheet({ level: 1, hitDieSize: 8 });
     assert.deepEqual(sheet.abilityModifiers, { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 });
   });
+
+  test('proficiencyBonus falls back to the level-derived value when absent', () => {
+    const sheet = computeDerivedSheet({ level: 9, hitDieSize: 8 });
+    assert.equal(sheet.proficiencyBonus, 4); // proficiencyBonusForLevel(9) === 4
+  });
+
+  test('an explicit proficiencyBonus overrides the level-derived value, including 0', () => {
+    const boosted = computeDerivedSheet({ level: 1, hitDieSize: 8, proficiencyBonus: 10 });
+    assert.equal(boosted.proficiencyBonus, 10);
+    const zeroed = computeDerivedSheet({ level: 5, hitDieSize: 8, proficiencyBonus: 0 });
+    assert.equal(zeroed.proficiencyBonus, 0);
+  });
+
+  test('an overridden proficiencyBonus still feeds skill/save proficiency bonuses', () => {
+    const sheet = computeDerivedSheet({
+      abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      level: 1, hitDieSize: 8, proficiencyBonus: 10,
+      skillProficiencies: ['Stealth'], saveProficiencies: ['dex'],
+    });
+    assert.equal(sheet.skillBonuses['Stealth'], 10);
+    assert.equal(sheet.saveBonuses.dex, 10);
+  });
+
+  test('effectiveSpeed defaults to 30 and adds any trait speed statMods', () => {
+    const plain = computeDerivedSheet({ level: 1, hitDieSize: 8 });
+    assert.equal(plain.effectiveSpeed, 30);
+
+    const boosted = computeDerivedSheet({
+      level: 1, hitDieSize: 8, speed: 25,
+      traits: [{ statMods: [{ stat: 'speed', value: 10 }] }],
+    });
+    assert.equal(boosted.effectiveSpeed, 35);
+  });
 });

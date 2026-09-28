@@ -75,6 +75,7 @@ describe('characters', () => {
     const campaign = createCampaign(db, 'Test');
     const sheet = upsertCharacter(db, campaign.id, 'uid-1', {
       username: 'Kaelen', class: 'Ranger', level: 5, hitDieSize: 10,
+      proficiencyBonus: 3, speed: 35, size: 'Small', alignment: 'Chaotic Good',
       abilityScores: { str: 14, dex: 16, con: 12, int: 10, wis: 13, cha: 8 },
       currentHp: 38, maxHp: 42, maxHpEffective: 43, ac: 15,
       skillProficiencies: ['Stealth', 'Survival'], skillExpertise: ['Stealth'],
@@ -85,6 +86,10 @@ describe('characters', () => {
     assert.equal(sheet.username, 'Kaelen');
     assert.equal(sheet.level, 5);
     assert.equal(sheet.hitDieSize, 10);
+    assert.equal(sheet.proficiencyBonus, 3);
+    assert.equal(sheet.speed, 35);
+    assert.equal(sheet.size, 'Small');
+    assert.equal(sheet.alignment, 'Chaotic Good');
     assert.deepEqual(sheet.abilityScores, { str: 14, dex: 16, con: 12, int: 10, wis: 13, cha: 8 });
     assert.equal(sheet.maxHpEffective, 43);
     assert.deepEqual(sheet.skillProficiencies, ['Stealth', 'Survival']);
@@ -108,6 +113,16 @@ describe('characters', () => {
     assert.equal(updated.username, 'Kaelen');
     assert.equal(updated.ac, 15);
     assert.deepEqual(updated.abilityScores.str, 14);
+  });
+
+  test('a minimally-created character gets the schema defaults for the new Phase 2 fields', () => {
+    const db = openDatabase(':memory:');
+    const campaign = createCampaign(db, 'Test');
+    const sheet = upsertCharacter(db, campaign.id, 'uid-1', { username: 'Blank' });
+    assert.equal(sheet.speed, 30);
+    assert.equal(sheet.size, 'Medium');
+    assert.equal(sheet.alignment, '');
+    assert.equal(sheet.proficiencyBonus, 2);
   });
 
   test('one character per (campaign, account_uid); a null account_uid is the solo/guest slot', () => {

@@ -14,6 +14,15 @@ const HIT_DIE_SIZES = [6, 8, 10, 12];
 const ABILITY_ABBRS = Object.keys(ABILITY_NAMES);
 const SKILL_NAMES = Object.keys(SKILL_ABILITY_MAP);
 const SPELL_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const CREATURE_SIZES = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
+// The 9 standard D&D alignments, law/chaos axis outer to inner then good/evil — '' is an
+// explicit "unset" choice (a blank first <option>), not defaulted to a real alignment, since
+// "no alignment chosen yet" and "True Neutral" are meaningfully different starting states.
+const ALIGNMENTS = [
+  'Lawful Good', 'Neutral Good', 'Chaotic Good',
+  'Lawful Neutral', 'True Neutral', 'Chaotic Neutral',
+  'Lawful Evil', 'Neutral Evil', 'Chaotic Evil',
+];
 
 function statModOptionsHtml() {
   const abilityOpts = ABILITY_ABBRS.map(a => `<option value="${a}">${ABILITY_NAMES[a]} modifier</option>`).join('');
@@ -22,6 +31,7 @@ function statModOptionsHtml() {
   return `
     <option value="ac">Armor Class</option>
     <option value="hp_max">Max HP</option>
+    <option value="speed">Speed</option>
     <optgroup label="Ability modifiers">${abilityOpts}</optgroup>
     <optgroup label="Skills">${skillOpts}</optgroup>
     <optgroup label="Saving throws">${saveOpts}</optgroup>
@@ -30,7 +40,8 @@ function statModOptionsHtml() {
 
 function blankCharacter() {
   return {
-    username: '', class: '', level: 1, hitDieSize: 8,
+    username: '', class: '', level: 1, hitDieSize: 8, proficiencyBonus: 2,
+    speed: 30, size: 'Medium', alignment: '',
     abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
     currentHp: 0,
     skillProficiencies: [], skillExpertise: [], saveProficiencies: [],
@@ -51,6 +62,8 @@ export function mountCharacterSheet(container, campaignId, accountUidParam) {
     character = {
       username: sheet.username || '', class: sheet.class || '',
       level: sheet.level || 1, hitDieSize: sheet.hitDieSize || 8,
+      proficiencyBonus: sheet.proficiencyBonus ?? 2,
+      speed: sheet.speed ?? 30, size: sheet.size || 'Medium', alignment: sheet.alignment || '',
       abilityScores: sheet.abilityScores || blankCharacter().abilityScores,
       currentHp: sheet.currentHp || 0,
       skillProficiencies: sheet.skillProficiencies || [],
@@ -86,12 +99,14 @@ export function mountCharacterSheet(container, campaignId, accountUidParam) {
       const el = container.querySelector(`#mod-${a}`);
       if (el) el.textContent = fmtMod(d.abilityModifiers[a]);
     }
-    const profEl = container.querySelector('#cs-prof-bonus');
-    if (profEl) profEl.textContent = fmtMod(d.proficiencyBonus);
+    // Proficiency Bonus is now a directly editable input (see the confirmed "adjustable field"
+    // change), not a computed read-only span — it holds its own value and isn't touched here.
     const hpEl = container.querySelector('#cs-max-hp');
     if (hpEl) hpEl.textContent = d.maxHp;
     const acEl = container.querySelector('#cs-ac');
     if (acEl) acEl.textContent = d.ac;
+    const speedEl = container.querySelector('#cs-effective-speed');
+    if (speedEl) speedEl.textContent = `${d.effectiveSpeed} ft`;
     for (const skill of SKILL_NAMES) {
       const el = container.querySelector(`#skill-bonus-${cssSafe(skill)}`);
       if (el) el.textContent = fmtMod(d.skillBonuses[skill]);
@@ -158,6 +173,20 @@ export function mountCharacterSheet(container, campaignId, accountUidParam) {
             </select>
           </label>
         </div>
+        <div class="cs-row">
+          <label>Size
+            <select id="cs-size">
+              ${CREATURE_SIZES.map(s => `<option value="${s}" ${s === character.size ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </label>
+          <label>Alignment
+            <select id="cs-alignment">
+              <option value="" ${character.alignment === '' ? 'selected' : ''}>—</option>
+              ${ALIGNMENTS.map(a => `<option value="${a}" ${a === character.alignment ? 'selected' : ''}>${a}</option>`).join('')}
+            </select>
+          </label>
+          <label>Speed (ft) <input id="cs-speed" type="number" min="0" value="${character.speed}"></label>
+        </div>
 
         <h3>Ability Scores</h3>
         <div class="cs-row cs-abilities">
@@ -171,10 +200,11 @@ export function mountCharacterSheet(container, campaignId, accountUidParam) {
 
         <h3>Vitals</h3>
         <div class="cs-row">
-          <span>Proficiency Bonus: <strong id="cs-prof-bonus"></strong></span>
+          <label>Proficiency Bonus (adjustable) <input id="cs-prof-bonus" type="number" value="${character.proficiencyBonus}"></label>
           <span>Max HP (derived): <strong id="cs-max-hp"></strong></span>
           <label>Current HP <input id="cs-current-hp" type="number" value="${character.currentHp}"></label>
           <span>AC (derived, 10 + Dex, no armor yet): <strong id="cs-ac"></strong></span>
+          <span>Speed (effective): <strong id="cs-effective-speed"></strong></span>
         </div>
 
         <h3>Skills</h3>
@@ -244,6 +274,16 @@ export function mountCharacterSheet(container, campaignId, accountUidParam) {
       updateComputedDisplay();
     });
     container.querySelector('#cs-current-hp').addEventListener('input', e => { character.currentHp = Number(e.target.value) || 0; });
+    container.querySelector('#cs-size').addEventListener('change', e => { character.size = e.target.value; });
+    container.querySelector('#cs-alignment').addEventListener('change', e => { character.alignment = e.target.value; });
+    container.querySelector('#cs-speed').addEventListener('input', e => {
+      character.speed = Number(e.target.value) || 0;
+      updateComputedDisplay();
+    });
+    container.querySelector('#cs-prof-bonus').addEventListener('input', e => {
+      character.proficiencyBonus = Number(e.target.value) || 0;
+      updateComputedDisplay();
+    });
 
     container.querySelectorAll('.ability-score').forEach(input => {
       input.addEventListener('input', e => {

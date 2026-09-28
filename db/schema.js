@@ -50,6 +50,16 @@ CREATE TABLE IF NOT EXISTS campaigns (
 -- spell slots. traits is a JSON array of {id, name, description, statMods:[{stat, value}]} —
 -- structured with real mechanical effects (confirmed with the user), consumed by
 -- computeDerivedSheet the same way item passive effects will consume their own statMods later.
+-- speed is the character's BASE walking speed (traits can still add to it via a 'speed' statMod
+-- at read time — see computeDerivedSheet's separate 'effectiveSpeed' output — but the stored
+-- column itself is always just the raw base, never overwritten with a trait-inflated total, to
+-- avoid compounding on every save). size/alignment are plain descriptive fields (size also
+-- doubles as the eventual grid-footprint value for a battle map, alignment is flavor/roleplay
+-- only — neither is computed). proficiency_bonus is a stored, directly editable field (not
+-- purely level-derived) — confirmed with the user, same "DM/player can adjust it directly"
+-- philosophy as spell slots; src/engine/character/character-sheet.js falls back to the standard
+-- level-derived value only when this column is genuinely absent (e.g. an ad-hoc engine call that
+-- didn't come from the DB), never overriding an explicit value.
 CREATE TABLE IF NOT EXISTS characters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -58,6 +68,10 @@ CREATE TABLE IF NOT EXISTS characters (
   class TEXT,
   level INTEGER NOT NULL DEFAULT 1,
   hit_die_size INTEGER NOT NULL DEFAULT 8,
+  proficiency_bonus INTEGER NOT NULL DEFAULT 2,
+  speed INTEGER NOT NULL DEFAULT 30,
+  size TEXT NOT NULL DEFAULT 'Medium',
+  alignment TEXT NOT NULL DEFAULT '',
   strength INTEGER NOT NULL DEFAULT 10,
   dexterity INTEGER NOT NULL DEFAULT 10,
   constitution INTEGER NOT NULL DEFAULT 10,
