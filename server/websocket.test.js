@@ -6,7 +6,7 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer as createHttpServer } from 'node:http';
 import { WebSocket } from 'ws';
-import { openDatabase, createCampaign } from '../db/database.js';
+import { openDatabase, createCampaign, upsertCharacter, getCharacter } from '../db/database.js';
 import { createWebSocketServer } from './websocket.js';
 
 let db, httpServer, port, campaignId;
@@ -1305,5 +1305,152 @@ describe('simulate a day (Phase 6k — long rest for every player)', () => {
     // The DM's own next message is the ack, not a day_advanced echo.
     const dmMsg = await nextNonRosterMessage(dm.next);
     assert.equal(dmMsg.type, 'simulate_day_ack');
+  });
+});
+
+describe('combat (Phase 3 of the mechanics rebuild)', () => {
+  // An absurdly high attackBonus makes every non-fumble roll land in "Devastating Hit" regardless
+  // of the d20 face — but NOT actually guaranteed to hit: resolveAttack always fumbles on a
+  // natural 1, unconditionally, regardless of bonuses (matching 5e's "a nat 1 always misses"
+  // rule) — a genuine ~5% miss chance on any single attack that these tests can't route around
+  // via bonuses alone. Tests that need to observe a hit use attackUntilHit below rather than
+  // asserting on a single attempt, so they test the real server-side random resolution path
+  // instead of a rigged one, without a ~1-in-20 chance of failing for a reason that isn't a bug.
+  const SURE_HIT_MONSTER = { id: 'm1', kind: 'monster', name: 'Goblin', ac: 5, currentHp: 20, maxHp: 20, attackBonus: 100, damageDice: '1d4', damageType: 'piercing' };
+
+  // Retries a combat_attack until the server reports a hit (or gives up after enough attempts
+  // that a real bug, not bad luck, is overwhelmingly the more likely explanation — 10 consecutive
+  // natural 1s is a 1-in-10^13 chance). Returns the combat_state_update from the attempt that hit.
+  // `senderWs` sends the attack; `readerNext` (a messageQueue's next()) is whichever connection's
+  // broadcast copy the caller actually wants to inspect — not always the same connection, since
+  // broadcastToRoom reaches every connection in the room, not just the sender.
+  async function attackUntilHit(senderWs, readerNext, attackerId, targetId, maxAttempts = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+      send(senderWs, { type: 'combat_attack', attackerId, targetId });
+      const update = await nextNonRosterMessage(readerNext);
+      if (update.log.at(-1).result.isHit) return update;
+    }
+    throw new Error(`No hit after ${maxAttempts} attempts — suspiciously unlucky or a real bug`);
+  }
+
+  test('a non-DM cannot push combat state', async () => {
+    const player = await connectAs('uid-alice', 'player');
+    send(player, { type: 'push_combat_state', roster: [], active: true, roundNumber: 1 });
+    const msg = await player.next();
+    assert.equal(msg.type, 'error');
+    assert.match(msg.message, /DM/);
+  });
+
+  test('pushing combat state broadcasts the enriched roster to the whole room, DM included', async () => {
+    upsertCharacter(db, campaignId, 'uid-alice', {
+      abilityScores: { str: 14, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, proficiencyBonus: 2, ac: 15, currentHp: 25, maxHp: 25, maxHpEffective: 25,
+    });
+    const player = await connectAs('uid-alice', 'player');
+    const dm = await connectAs('uid-dm', 'dm');
+    const roster = [{ id: 'p1', kind: 'pc', name: 'Alice', accountUid: 'uid-alice' }, SURE_HIT_MONSTER];
+    send(dm, { type: 'push_combat_state', roster, active: true, roundNumber: 1 });
+
+    const dmUpdate = await nextNonRosterMessage(dm.next);
+    assert.equal(dmUpdate.type, 'combat_state_update');
+    const pcEntry = dmUpdate.roster.find(e => e.id === 'p1');
+    assert.equal(pcEntry.ac, 15); // enriched live from the characters table, not the bare push
+    assert.equal(pcEntry.currentHp, 25);
+    const monsterEntry = dmUpdate.roster.find(e => e.id === 'm1');
+    assert.equal(monsterEntry.currentHp, 20); // monster entries pass through as pushed
+
+    const playerUpdate = await nextNonRosterMessage(player.next);
+    assert.equal(playerUpdate.type, 'combat_state_update');
+    assert.equal(playerUpdate.roster.length, 2);
+  });
+
+  test('a player who connects after combat was already started gets immediate catch-up', async () => {
+    const dm = await connectAs('uid-dm', 'dm');
+    send(dm, { type: 'push_combat_state', roster: [SURE_HIT_MONSTER], active: true, roundNumber: 3 });
+    await nextNonRosterMessage(dm.next); // drain the DM's own broadcast
+
+    const ws = await connect();
+    const next = messageQueue(ws);
+    send(ws, { type: 'identify', campaignId, accountUid: 'uid-bob', role: 'player' });
+    await next(); // identified
+    const combatUpdate = await next();
+    assert.equal(combatUpdate.type, 'combat_state_update');
+    assert.equal(combatUpdate.roundNumber, 3);
+    assert.equal(combatUpdate.roster[0].name, 'Goblin');
+  });
+
+  test('a PC attacking a monster resolves server-side and reduces the monster\'s HP', async () => {
+    upsertCharacter(db, campaignId, 'uid-alice', {
+      abilityScores: { str: 18, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, proficiencyBonus: 5, ac: 15, currentHp: 25, maxHp: 25, maxHpEffective: 25,
+    });
+    const dm = await connectAs('uid-dm', 'dm');
+    const roster = [{ id: 'p1', kind: 'pc', name: 'Alice', accountUid: 'uid-alice' }, { ...SURE_HIT_MONSTER, ac: 1 }];
+    send(dm, { type: 'push_combat_state', roster, active: true, roundNumber: 1 });
+    await nextNonRosterMessage(dm.next);
+
+    const update = await attackUntilHit(dm, dm.next, 'p1', 'm1');
+    assert.equal(update.type, 'combat_state_update');
+    const monster = update.roster.find(e => e.id === 'm1');
+    assert.ok(monster.currentHp < 20, `expected the goblin to take damage, still at ${monster.currentHp}`);
+    assert.equal(update.log.at(-1).message.startsWith('Alice attacks Goblin'), true);
+  });
+
+  test('a monster attacking a PC persists the new HP to the real characters table', async () => {
+    upsertCharacter(db, campaignId, 'uid-alice', {
+      abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, proficiencyBonus: 2, ac: 1, currentHp: 25, maxHp: 25, maxHpEffective: 25,
+    });
+    const dm = await connectAs('uid-dm', 'dm');
+    const roster = [{ id: 'p1', kind: 'pc', name: 'Alice', accountUid: 'uid-alice' }, SURE_HIT_MONSTER];
+    send(dm, { type: 'push_combat_state', roster, active: true, roundNumber: 1 });
+    await nextNonRosterMessage(dm.next);
+
+    const update = await attackUntilHit(dm, dm.next, 'm1', 'p1');
+    const pcEntry = update.roster.find(e => e.id === 'p1');
+    assert.ok(pcEntry.currentHp < 25, `expected Alice to take damage, still at ${pcEntry.currentHp}`);
+
+    // The real persisted record, not just the broadcast payload -- confirms this actually wrote
+    // through to the characters table (the single source of truth for a PC's HP), not just the
+    // in-memory roster.
+    const character = getCharacter(db, campaignId, 'uid-alice');
+    assert.equal(character.currentHp, pcEntry.currentHp);
+  });
+
+  test('damage never drops a combatant\'s HP below 0', async () => {
+    upsertCharacter(db, campaignId, 'uid-alice', {
+      abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, proficiencyBonus: 2, ac: 1, currentHp: 1, maxHp: 25, maxHpEffective: 25,
+    });
+    const dm = await connectAs('uid-dm', 'dm');
+    const roster = [{ id: 'p1', kind: 'pc', name: 'Alice', accountUid: 'uid-alice' }, SURE_HIT_MONSTER];
+    send(dm, { type: 'push_combat_state', roster, active: true, roundNumber: 1 });
+    await nextNonRosterMessage(dm.next);
+
+    const update = await attackUntilHit(dm, dm.next, 'm1', 'p1');
+    const pcEntry = update.roster.find(e => e.id === 'p1');
+    assert.equal(pcEntry.currentHp, 0);
+  });
+
+  test('attacking with an unknown attacker or target id returns an error, not a crash', async () => {
+    const dm = await connectAs('uid-dm', 'dm');
+    send(dm, { type: 'push_combat_state', roster: [SURE_HIT_MONSTER], active: true, roundNumber: 1 });
+    await nextNonRosterMessage(dm.next);
+
+    send(dm, { type: 'combat_attack', attackerId: 'nonexistent', targetId: 'm1' });
+    const msg = await nextNonRosterMessage(dm.next);
+    assert.equal(msg.type, 'error');
+  });
+
+  test('a player (not just the DM) can trigger a combat_attack for their own PC', async () => {
+    upsertCharacter(db, campaignId, 'uid-alice', {
+      abilityScores: { str: 18, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, proficiencyBonus: 5, ac: 15, currentHp: 25, maxHp: 25, maxHpEffective: 25,
+    });
+    const player = await connectAs('uid-alice', 'player');
+    const dm = await connectAs('uid-dm', 'dm');
+    const roster = [{ id: 'p1', kind: 'pc', name: 'Alice', accountUid: 'uid-alice' }, { ...SURE_HIT_MONSTER, ac: 1 }];
+    send(dm, { type: 'push_combat_state', roster, active: true, roundNumber: 1 });
+    await nextNonRosterMessage(dm.next);
+    await nextNonRosterMessage(player.next);
+
+    const update = await attackUntilHit(player, dm.next, 'p1', 'm1');
+    const monster = update.roster.find(e => e.id === 'm1');
+    assert.ok(monster.currentHp < 20);
   });
 });

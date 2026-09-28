@@ -19,3 +19,19 @@ table.cs-skills td, table.cs-skills th, table.cs-saves td, table.cs-saves th {
 .cs-empty { color: #888; font-style: italic; }
 .cs-save-row { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; }
 #cs-status { color: #145; }
+
+.tab-row { display: flex; gap: 0.5rem; margin: 1rem 0; }
+.tab-row button { padding: 0.4rem 0.9rem; cursor: pointer; }
+.tab-row button.tab-active { background: #145; color: #fff; border-color: #145; }
+
+.combat-panel h3 { margin-top: 1.25rem; margin-bottom: 0.4rem; border-bottom: 1px solid #ccc; }
+.combat-add-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 0.5rem 0; }
+.cb-add-monster input { width: 4em; margin-right: 0.25rem; }
+table.combat-roster { border-collapse: collapse; width: 100%; max-width: 40rem; }
+table.combat-roster td, table.combat-roster th { padding: 0.25rem 0.6rem; text-align: left; border-bottom: 1px solid #eee; }
+.hp-bar-track { width: 8rem; height: 0.6rem; background: #eee; border-radius: 3px; display: inline-block; margin-right: 0.5rem; vertical-align: middle; }
+.hp-bar-fill { height: 100%; background: #2a7; border-radius: 3px; }
+.combat-attack-row { display: flex; gap: 1rem; align-items: flex-end; margin: 0.5rem 0; }
+.combat-attack-row label { display: flex; flex-direction: column; font-size: 0.85rem; }
+.combat-log { list-style: none; padding: 0; max-width: 40rem; }
+.combat-log li { padding: 0.2rem 0; border-bottom: 1px solid #f0f0f0; }

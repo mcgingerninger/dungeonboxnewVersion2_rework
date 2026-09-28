@@ -72,6 +72,20 @@
 //       -- locally before sending this — see simulateADay's own comment in the main app),
 //       -- mutating each player's PERSISTED state directly so it reaches players who aren't even
 //       -- connected right now, same reasoning as hp_delta/gift_item/set_inventory_fields above
+//     { type: 'push_combat_state', roster, active, roundNumber }        -- DM only (Phase 3 of the
+//       -- mechanics rebuild); wholesale-replaces the combat subsystem's roster/active/
+//       -- roundNumber, same "DM sends the whole list, server just persists+broadcasts it" shape
+//       -- as push_battlefield. A roster entry is either { id, kind:'pc', name, accountUid } (AC/
+//       -- HP always read live from the `characters` table, never duplicated here) or
+//       -- { id, kind:'monster', name, ac, currentHp, maxHp, attackBonus, damageDice, damageType }
+//       -- (fully self-contained — no monster-stat-block system exists yet, that's Phase 7.2).
+//     { type: 'combat_attack', attackerId, targetId }                   -- any identified
+//       -- connection (not DM-only — either side may trigger their own PC's attack); the SERVER
+//       -- calls src/engine/combat/attack.js's resolveAttack itself using its own copy of both
+//       -- roster entries' state, never a client-supplied roll — closes the old app's
+//       -- unvalidated-client-computed-roll gap. Unarmed-strike only for now (UNARMED_STRIKE_
+//       -- ACTION) since no item system exists yet; a monster attacker uses its roster entry's own
+//       -- attackBonus/damageDice/damageType instead.
 //   server -> client:
 //     { type: 'identified', state, rev }             -- ack, plus whatever was already persisted for this account
 //     { type: 'push_ack', rev }                       -- confirms a push_state was actually persisted
@@ -145,6 +159,15 @@
 //       -- already did this locally) on a simulate_day; each player's own daily wares reroll
 //       -- locally in response (see the main app's window.onDayAdvanced) — their character
 //       -- long-rest itself arrives separately via the ordinary state_update above
+//     { type: 'combat_state_update', active, roundNumber, roster, log }  -- broadcast to EVERY
+//       -- connection in the room (DM included, same reasoning merchant_stock_update already
+//       -- uses — combat has no single "owner" the way battlefield/puzzle-log do, both sides need
+//       -- to see it live) on a push_combat_state or a resolved combat_attack, AND sent once on
+//       -- identify (both roles) if a fight is already in progress, same immediate-catch-up spirit
+//       -- as every other broadcast subsystem. `roster` here is the ENRICHED view — a 'pc' entry
+//       -- has its ac/currentHp/maxHp merged in live from the characters table (see
+//       -- buildCombatRosterView), never the bare { id, kind, name, accountUid } push_combat_state
+//       -- itself stores.
 //     { type: 'error', message }
 //
 // The ack types matter for more than bookkeeping: the original Firestore design lets a caller
@@ -204,8 +227,10 @@ import {
   getCampaign, savePlayerState, loadPlayerState, loadAllPlayerStates, deletePlayerState, createLootClaim,
   saveSubsystemState, loadSubsystemState,
   createAttackRequest, listAttackRequests, deleteAttackRequest,
+  getCharacter, upsertCharacter,
 } from '../db/database.js';
 import { applyLongRestToPlayerState, applyItemEffectToState, applyTrapEffectToState } from '../game-engine.js';
+import { resolveAttack, UNARMED_STRIKE_ACTION } from '../src/engine/combat/attack.js';
 
 // Phase 6d: real-time gambling sync, the one gap left over from the original Phase 5 audit (see
 // docs/ARCHITECTURE.md's Phase 6 section — deliberately deprioritized until now). Reuses Phase
@@ -267,6 +292,48 @@ export function createWebSocketServer(db, httpServer) {
   // this reaches every connection in the room regardless of role.
   function broadcastToRoom(campaignId, msg) {
     for (const entry of roomFor(campaignId).values()) send(entry.ws, msg);
+  }
+
+  // Phase 3 of the mechanics rebuild: reads the persisted combat subsystem (bare roster entries —
+  // a 'pc' entry stores only { id, kind, name, accountUid }, never AC/HP) and returns the
+  // enriched view clients actually render, merging each 'pc' entry's live ac/currentHp/maxHp in
+  // from the `characters` table. A 'monster' entry is already fully self-contained and passes
+  // through unchanged. Returns null if no combat has been started in this campaign yet.
+  function buildCombatRosterView(campaignId) {
+    const combat = loadSubsystemState(db, campaignId, 'combat');
+    if (!combat) return null;
+    const roster = (combat.roster || []).map(entry => {
+      if (entry.kind !== 'pc') return entry;
+      const character = getCharacter(db, campaignId, entry.accountUid);
+      if (!character) return { ...entry, ac: 10, currentHp: 0, maxHp: 0 };
+      return { ...entry, ac: character.ac, currentHp: character.currentHp, maxHp: character.maxHpEffective ?? character.maxHp };
+    });
+    return { active: !!combat.active, roundNumber: combat.roundNumber || 0, roster, log: combat.log || [] };
+  }
+
+  // Builds the attacker/target/weaponOrAction shapes resolveAttack expects from a raw roster
+  // entry — a 'pc' entry's combat stats come from the characters table (ability scores,
+  // proficiency bonus, ac, current HP), a 'monster' entry is self-contained on the roster row
+  // itself. Returns null if the entry can't be resolved (unknown id, or a 'pc' entry whose
+  // character record vanished).
+  function combatCombatantFor(campaignId, entry) {
+    if (!entry) return null;
+    if (entry.kind === 'pc') {
+      const character = getCharacter(db, campaignId, entry.accountUid);
+      if (!character) return null;
+      return {
+        attacker: { abilityScores: character.abilityScores, proficiencyBonus: character.proficiencyBonus },
+        target: { ac: character.ac },
+        currentHp: character.currentHp,
+        action: UNARMED_STRIKE_ACTION,
+      };
+    }
+    return {
+      attacker: {},
+      target: { ac: entry.ac },
+      currentHp: entry.currentHp,
+      action: { damageDice: entry.damageDice, damageType: entry.damageType, toHitBonus: entry.attackBonus, damageBonus: entry.damageBonus ?? 0 },
+    };
   }
 
   // Phase 5d. See the module comment above for the one real simplification versus the original
@@ -364,6 +431,10 @@ export function createWebSocketServer(db, httpServer) {
         // rest — a merchant nobody's bought anything from yet simply has no persisted stock.
         const merchantStock = loadSubsystemState(db, campaignId, 'merchant_stock');
         if (merchantStock) send(ws, { type: 'merchant_stock_full', stock: merchantStock });
+        // Phase 3 of the mechanics rebuild: combat matters to both roles equally (same reasoning
+        // merchant stock catch-up above already uses), so this sends regardless of role too.
+        const combatView = buildCombatRosterView(campaignId);
+        if (combatView) send(ws, { type: 'combat_state_update', ...combatView });
         if (msg.role !== 'dm') {
           // Phase 5c: a player who just (re)connected should see whatever the DM already
           // published, not wait for the next push — matching Firestore's onSnapshot firing
@@ -536,6 +607,60 @@ export function createWebSocketServer(db, httpServer) {
           const dmWs = findDmConnection(identity.campaignId);
           if (dmWs) send(dmWs, { type: 'loot_claim_update', claimId: msg.claimId, claimedByUid: result.claimedByUid, claimedByUsername: result.claimedByUsername });
         }
+        return;
+      }
+
+      // Phase 3 of the mechanics rebuild. Wholesale-replace, same shape as push_battlefield —
+      // roster entries are stored BARE (see the module comment's combat_state_update entry); the
+      // enriched view with live PC ac/hp gets built fresh by buildCombatRosterView whenever it's
+      // actually sent out, never stored, so a PC's HP can never go stale in the persisted roster.
+      if (msg.type === 'push_combat_state') {
+        if (identity.role !== 'dm') return send(ws, { type: 'error', message: 'Only the DM can push combat state' });
+        const roster = Array.isArray(msg.roster) ? msg.roster : [];
+        const existing = loadSubsystemState(db, identity.campaignId, 'combat') || { log: [] };
+        saveSubsystemState(db, identity.campaignId, 'combat', {
+          active: !!msg.active, roundNumber: Number(msg.roundNumber) || 0, roster, log: existing.log || [],
+        });
+        // No separate ack: unlike push_battlefield (broadcastToPlayers, which EXCLUDES the DM,
+        // hence needing push_battlefield_ack so the DM knows their own push landed),
+        // broadcastToRoom reaches every connection including the sender — same reasoning
+        // restock_merchant already uses to skip a redundant ack.
+        broadcastToRoom(identity.campaignId, { type: 'combat_state_update', ...buildCombatRosterView(identity.campaignId) });
+        return;
+      }
+
+      // Phase 3 of the mechanics rebuild. NOT DM-only — either side may trigger their own PC's
+      // attack, matching the plan's "auto-resolve, no forced manual DM Apply click" decision. The
+      // server resolves the roll itself (src/engine/combat/attack.js's resolveAttack) using its
+      // own copy of both combatants' state — never a client-supplied roll — closing the old app's
+      // unvalidated-client-computed-roll gap documented in the rebuild plan's audit.
+      if (msg.type === 'combat_attack') {
+        const combat = loadSubsystemState(db, identity.campaignId, 'combat');
+        if (!combat) return send(ws, { type: 'error', message: 'No combat in progress' });
+        const roster = combat.roster || [];
+        const attackerEntry = roster.find(e => e.id === msg.attackerId);
+        const targetEntry = roster.find(e => e.id === msg.targetId);
+        if (!attackerEntry || !targetEntry) return send(ws, { type: 'error', message: 'Unknown attacker or target' });
+        const attackerCombatant = combatCombatantFor(identity.campaignId, attackerEntry);
+        const targetCombatant = combatCombatantFor(identity.campaignId, targetEntry);
+        if (!attackerCombatant || !targetCombatant) return send(ws, { type: 'error', message: 'Could not resolve attacker or target' });
+
+        const result = resolveAttack({
+          attacker: attackerCombatant.attacker, target: targetCombatant.target, weaponOrAction: attackerCombatant.action,
+        });
+        const newHp = Math.max(0, targetCombatant.currentHp - (result.damage?.total ?? 0));
+        if (targetEntry.kind === 'pc') {
+          upsertCharacter(db, identity.campaignId, targetEntry.accountUid, { currentHp: newHp });
+        } else {
+          targetEntry.currentHp = newHp;
+        }
+
+        const logLine = result.isHit
+          ? `${attackerEntry.name} attacks ${targetEntry.name}: ${result.tier} for ${result.damage.total} ${result.damageType || ''}`.trim()
+          : `${attackerEntry.name} attacks ${targetEntry.name}: ${result.tier}`;
+        const log = [...(combat.log || []), { message: logLine, result }].slice(-50);
+        saveSubsystemState(db, identity.campaignId, 'combat', { active: !!combat.active, roundNumber: combat.roundNumber || 0, roster, log });
+        broadcastToRoom(identity.campaignId, { type: 'combat_state_update', ...buildCombatRosterView(identity.campaignId) });
         return;
       }
 

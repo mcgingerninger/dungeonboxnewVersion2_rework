@@ -211,4 +211,13 @@ export const SUBSYSTEMS = {
   // Non-empty so assertValidSubsystem's truthiness check (database.js) accepts the key; the
   // array's contents aren't otherwise meaningful, unlike every other entry above.
   merchant_stock: ['(no legacy field — new shared state)'],
+  // Phase 3 of the mechanics rebuild (see the approved rebuild plan): shared combat/encounter
+  // state, replacing the old app's client-memory-only battleRoster (lost on refresh) with a real
+  // persisted row, following this same subsystem-bucket pattern rather than a dedicated table —
+  // the shape isn't proven stable yet. { active, roundNumber, roster, log }. A roster entry is
+  // either { id, kind:'pc', name, accountUid } (AC/HP always read live from the characters table
+  // via accountUid, never duplicated here) or { id, kind:'monster', name, ac, currentHp, maxHp,
+  // attackBonus, damageDice, damageType } (fully self-contained — no monster-stat-block system
+  // exists yet; that's Phase 7.2's job). No old blob field to map from.
+  combat: ['(no legacy field — new mechanics-rebuild state)'],
 };

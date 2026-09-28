@@ -211,7 +211,9 @@ describe('campaign_state (subsystem blobs)', () => {
     // separate (see db/schema.js's comment) — included here since this is the source-of-truth
     // list check for SUBSYSTEMS as a whole, not just the original blob's coverage. Same for
     // merchant_stock (post-6c) — the shared, arbitrated staple-stock state, no old blob field.
-    const expectedSubsystems = ['inventory', 'battle', 'merchant', 'bounties', 'mangler', 'loot_settings', 'effects', 'claims', 'journey', 'puzzle_log', 'gambling', 'battlefield_broadcast', 'puzzle_log_broadcast', 'merchant_stock'];
+    // 'combat' (Phase 3 of the mechanics rebuild) is the same kind of addition — new, shared
+    // state with no old blob field to map from.
+    const expectedSubsystems = ['inventory', 'battle', 'merchant', 'bounties', 'mangler', 'loot_settings', 'effects', 'claims', 'journey', 'puzzle_log', 'gambling', 'battlefield_broadcast', 'puzzle_log_broadcast', 'merchant_stock', 'combat'];
     assert.deepEqual(Object.keys(SUBSYSTEMS).sort(), expectedSubsystems.sort());
   });
 });
