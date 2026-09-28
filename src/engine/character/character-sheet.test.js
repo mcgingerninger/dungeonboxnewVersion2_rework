@@ -108,4 +108,16 @@ describe('computeDerivedSheet', () => {
     });
     assert.equal(boosted.effectiveSpeed, 35);
   });
+
+  test('a trait ability-abbreviation statMod bumps the derived modifier directly (Phase 6: equipped items reuse this)', () => {
+    const plain = computeDerivedSheet({ abilityScores: { str: 10, dex: 14, con: 10, int: 10, wis: 10, cha: 10 }, level: 1, hitDieSize: 8 });
+    const boosted = computeDerivedSheet({
+      abilityScores: { str: 10, dex: 14, con: 10, int: 10, wis: 10, cha: 10 }, level: 1, hitDieSize: 8,
+      traits: [{ statMods: [{ stat: 'dex', value: 1 }] }],
+    });
+    assert.equal(boosted.abilityModifiers.dex, plain.abilityModifiers.dex + 1);
+    // and it flows through into everything derived from that modifier — AC, saves, skills
+    assert.equal(boosted.ac, plain.ac + 1);
+    assert.equal(boosted.saveBonuses.dex, plain.saveBonuses.dex + 1);
+  });
 });

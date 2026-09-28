@@ -70,7 +70,9 @@ export function touchCampaign(db, id) {
 // ---------- Characters ----------
 // `sheet` mirrors the shape of the relevant slice of the old localStorage blob: abilityScores
 // ({str,dex,con,int,wis,cha}), level, skillProficiencies, skillExpertise, saveProficiencies,
-// currentHp, maxHp, maxHpEffective, hitDieSize, ac, class, spellSlotsMax, spellSlotsUsed, traits.
+// currentHp, maxHp, maxHpEffective, hitDieSize, ac, class, spellSlotsMax, spellSlotsUsed, traits,
+// inventory, equippedSlots (the last two added in Phase 6 of the mechanics rebuild — see
+// db/schema.js's characters table comment for their shape).
 // Every field is optional and falls back to the schema's column default, matching
 // applyStateBlob's existing "only overwrite what's actually present" behavior rather than
 // requiring a full sheet on every call.
@@ -104,6 +106,8 @@ export function upsertCharacter(db, campaignId, accountUid, sheet = {}) {
     spell_slots_max: sheet.spellSlotsMax ? JSON.stringify(sheet.spellSlotsMax) : undefined,
     spell_slots_used: sheet.spellSlotsUsed ? JSON.stringify(sheet.spellSlotsUsed) : undefined,
     traits: sheet.traits ? JSON.stringify(sheet.traits) : undefined,
+    inventory: sheet.inventory ? JSON.stringify(sheet.inventory) : undefined,
+    equipped_slots: sheet.equippedSlots ? JSON.stringify(sheet.equippedSlots) : undefined,
   };
   if (existing) {
     const sets = [];
@@ -157,6 +161,8 @@ function rowToSheet(row) {
     spellSlotsMax: JSON.parse(row.spell_slots_max),
     spellSlotsUsed: JSON.parse(row.spell_slots_used),
     traits: JSON.parse(row.traits),
+    inventory: JSON.parse(row.inventory),
+    equippedSlots: JSON.parse(row.equipped_slots),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

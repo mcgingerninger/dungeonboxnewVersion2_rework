@@ -6,6 +6,7 @@ import './style.css';
 import { mountCharacterSheet } from './ui/character-sheet/character-sheet.js';
 import { mountCombatPanel } from './ui/combat/combat-panel.js';
 import { mountItemsPanel } from './ui/items/items-panel.js';
+import { mountInventoryPanel } from './ui/inventory/inventory-panel.js';
 
 const SOLO_ACCOUNT_PARAM = '_solo';
 const app = document.getElementById('app');
@@ -34,15 +35,18 @@ function renderShell() {
       <button type="button" id="tab-sheet" class="${activeTab === 'sheet' ? 'tab-active' : ''}">Character Sheet</button>
       <button type="button" id="tab-combat" class="${activeTab === 'combat' ? 'tab-active' : ''}">Combat</button>
       <button type="button" id="tab-items" class="${activeTab === 'items' ? 'tab-active' : ''}">Items</button>
+      <button type="button" id="tab-inventory" class="${activeTab === 'inventory' ? 'tab-active' : ''}">Inventory</button>
     </div>
     <div id="tab-mount"></div>
   `;
   document.getElementById('tab-sheet').addEventListener('click', () => { activeTab = 'sheet'; renderShell(); });
   document.getElementById('tab-combat').addEventListener('click', () => { activeTab = 'combat'; renderShell(); });
   document.getElementById('tab-items').addEventListener('click', () => { activeTab = 'items'; renderShell(); });
+  document.getElementById('tab-inventory').addEventListener('click', () => { activeTab = 'inventory'; renderShell(); });
   const mount = document.getElementById('tab-mount');
   if (activeTab === 'sheet') mountCharacterSheet(mount, campaignRef.id, SOLO_ACCOUNT_PARAM);
   else if (activeTab === 'combat') mountCombatPanel(mount, campaignRef.id);
+  else if (activeTab === 'inventory') mountInventoryPanel(mount, campaignRef.id, SOLO_ACCOUNT_PARAM);
   else mountItemsPanel(mount);
 }
 

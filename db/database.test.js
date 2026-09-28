@@ -123,6 +123,34 @@ describe('characters', () => {
     assert.equal(sheet.size, 'Medium');
     assert.equal(sheet.alignment, '');
     assert.equal(sheet.proficiencyBonus, 2);
+    assert.deepEqual(sheet.inventory, []);
+    assert.deepEqual(sheet.equippedSlots, {});
+  });
+
+  test('Phase 6: inventory and equippedSlots round-trip through upsert/get', () => {
+    const db = openDatabase(':memory:');
+    const campaign = createCampaign(db, 'Test');
+    const inventory = [
+      { instanceId: 'inst-1', itemId: 'leather-armor' },
+      { instanceId: 'inst-2', itemId: 'potion-of-healing', usesLeft: 1 },
+    ];
+    const equippedSlots = { armor: 'inst-1', weapon1: null };
+    const sheet = upsertCharacter(db, campaign.id, 'uid-1', { username: 'Gearing Up', inventory, equippedSlots });
+    assert.deepEqual(sheet.inventory, inventory);
+    assert.deepEqual(sheet.equippedSlots, equippedSlots);
+    const reloaded = getCharacter(db, campaign.id, 'uid-1');
+    assert.deepEqual(reloaded.inventory, inventory);
+    assert.deepEqual(reloaded.equippedSlots, equippedSlots);
+  });
+
+  test('a partial update that never mentions inventory/equippedSlots leaves them unchanged', () => {
+    const db = openDatabase(':memory:');
+    const campaign = createCampaign(db, 'Test');
+    const inventory = [{ instanceId: 'inst-1', itemId: 'dagger' }];
+    upsertCharacter(db, campaign.id, 'uid-1', { username: 'Kept', inventory, equippedSlots: { weapon1: 'inst-1' } });
+    const updated = upsertCharacter(db, campaign.id, 'uid-1', { currentHp: 5 });
+    assert.deepEqual(updated.inventory, inventory);
+    assert.deepEqual(updated.equippedSlots, { weapon1: 'inst-1' });
   });
 
   test('one character per (campaign, account_uid); a null account_uid is the solo/guest slot', () => {

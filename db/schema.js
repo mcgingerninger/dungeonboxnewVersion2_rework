@@ -88,6 +88,23 @@ CREATE TABLE IF NOT EXISTS characters (
   spell_slots_max TEXT NOT NULL DEFAULT '{}',
   spell_slots_used TEXT NOT NULL DEFAULT '{}',
   traits TEXT NOT NULL DEFAULT '[]',
+  -- Phase 6 of the mechanics rebuild (see the approved rebuild plan): real inventory/equip state,
+  -- added directly to this table rather than a campaign_state bucket or the WebSocket-only
+  -- player_states table — both of those exist for other reasons (campaign-wide DM settings /
+  -- Firestore-mirroring live sync state) and neither is "this one character's owned items," which
+  -- belongs alongside its other mechanical columns (traits, spell slots) on this same row.
+  -- inventory is a JSON array of owned item INSTANCES: [{instanceId, itemId, usesLeft?}, ...] —
+  -- instanceId (not itemId) is what equipped_slots below points at, since a character can own two
+  -- copies of the same catalog item (two Potions of Healing) with independently tracked usesLeft.
+  -- Equipping never removes an entry from this array — it's the character's full owned list;
+  -- equipped_slots is just which instanceId currently occupies which slot.
+  inventory TEXT NOT NULL DEFAULT '[]',
+  -- JSON object { [slotId]: instanceId | null } — slotId is one of src/engine/character/
+  -- equipment.js's EQUIPMENT_SLOTS ids (weapon1/weapon2/armor/shield/helmet/handwear/boots/
+  -- leggings/facewear/cloak/beltwaist), a scoped-down subset of the old app's real 24-slot
+  -- SLOT_CATEGORY (dungeon_loot_wheel_v102_spell_details.html) — ring/amulet/charm/limb/companion
+  -- slots return once wondrous/quest items exist to occupy them (still deferred, see item-schema.js).
+  equipped_slots TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(campaign_id, account_uid)

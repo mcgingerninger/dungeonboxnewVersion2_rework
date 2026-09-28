@@ -32,13 +32,18 @@ export function computeDerivedSheet(character) {
     skillProficiencies = [], skillExpertise = [], saveProficiencies = [], traits = [],
   } = character;
 
-  const abilityModifiers = {};
-  for (const abbr of Object.keys(ABILITY_NAMES)) {
-    abilityModifiers[abbr] = abilityModifier(abilityScores[abbr] ?? 10);
-  }
-
   const proficiencyBonus = character.proficiencyBonus ?? proficiencyBonusForLevel(level);
   const traitStatMods = collectStatMods(traits);
+
+  // An ability-abbreviation-keyed statMod (e.g. a +1 Dexterity item, per stat-modifiers.js's own
+  // documented vocabulary) bumps the derived MODIFIER directly rather than the raw score, so it
+  // never retroactively changes what "the base score" reads as elsewhere — Phase 6's equipment
+  // layer (src/engine/character/equipment.js) is the first real caller of this; previously
+  // declared here but never actually applied.
+  const abilityModifiers = {};
+  for (const abbr of Object.keys(ABILITY_NAMES)) {
+    abilityModifiers[abbr] = abilityModifier(abilityScores[abbr] ?? 10) + sumModifier(traitStatMods, abbr);
+  }
 
   const maxHp = computeMaxHp(level, hitDieSize, abilityModifiers.con) + sumModifier(traitStatMods, 'hp_max');
   const ac = 10 + abilityModifiers.dex + sumModifier(traitStatMods, 'ac');
