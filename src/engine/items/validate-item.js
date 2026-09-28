@@ -53,11 +53,14 @@ export function validateItem(item) {
       errors.push('consumable.effects must be a non-empty array');
     } else {
       item.consumable.effects.forEach((effect, i) => {
-        if (typeof effect.consumesItem !== 'boolean') errors.push(`consumable.effects[${i}].consumesItem must be a boolean`);
         if (effect.kind === 'heal' && !effect.healDice) errors.push(`consumable.effects[${i}] is kind "heal" but has no healDice`);
         if (effect.kind === 'damage' && (!effect.damageDice || !effect.damageType)) errors.push(`consumable.effects[${i}] is kind "damage" but is missing damageDice/damageType`);
       });
     }
+    if (!item.consumable.uses || typeof item.consumable.uses.max !== 'number' || item.consumable.uses.max < 1) {
+      errors.push('consumable.uses.max must be a number >= 1');
+    }
+    if (typeof item.consumable.usesLeft !== 'number') errors.push('consumable.usesLeft must be a number');
   }
 
   return { valid: errors.length === 0, errors };

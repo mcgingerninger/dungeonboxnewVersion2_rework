@@ -45,23 +45,40 @@ describe('every base consumable validates cleanly against the real schema', () =
       }
     }
   });
+
+  test('every item declares consumable.uses.max and starts with usesLeft === uses.max', () => {
+    for (const item of consumables) {
+      assert.equal(typeof item.consumable.uses?.max, 'number', `${item.name} missing uses.max`);
+      assert.equal(item.consumable.usesLeft, item.consumable.uses.max, `${item.name} usesLeft should start at uses.max`);
+    }
+  });
+
+  test('Corked Vial of Spirits keeps its real 2-use count from the reference data', () => {
+    const vial = consumables.find(c => c.id === 'corked-vial-of-spirits');
+    assert.equal(vial.consumable.uses.max, 2);
+  });
 });
 
 describe('validateItem catches malformed consumable effects (regression guard for the new checks)', () => {
   test('a "heal" effect with no healDice is rejected', () => {
-    const result = validateItem({ id: 'x', name: 'X', itemType: 'consumable', rarity: 'common', consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', consumesItem: true }] } });
+    const result = validateItem({ id: 'x', name: 'X', itemType: 'consumable', rarity: 'common', consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal' }], uses: { max: 1 }, usesLeft: 1 } });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some(e => e.includes('healDice')));
   });
   test('a "damage" effect with no damageDice/damageType is rejected', () => {
-    const result = validateItem({ id: 'x', name: 'X', itemType: 'consumable', rarity: 'common', consumable: { consumableCategory: 'scroll', effects: [{ kind: 'damage', consumesItem: true }] } });
+    const result = validateItem({ id: 'x', name: 'X', itemType: 'consumable', rarity: 'common', consumable: { consumableCategory: 'scroll', effects: [{ kind: 'damage' }], uses: { max: 1 }, usesLeft: 1 } });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some(e => e.includes('damageDice')));
   });
-  test('an effect missing consumesItem is rejected', () => {
+  test('an item with no consumable.uses at all is rejected', () => {
     const result = validateItem({ id: 'x', name: 'X', itemType: 'consumable', rarity: 'common', consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', healDice: '1d4' }] } });
     assert.equal(result.valid, false);
-    assert.ok(result.errors.some(e => e.includes('consumesItem')));
+    assert.ok(result.errors.some(e => e.includes('uses.max')));
+  });
+  test('an item with uses.max but no usesLeft is rejected', () => {
+    const result = validateItem({ id: 'x', name: 'X', itemType: 'consumable', rarity: 'common', consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', healDice: '1d4' }], uses: { max: 1 } } });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.includes('usesLeft')));
   });
 });
 

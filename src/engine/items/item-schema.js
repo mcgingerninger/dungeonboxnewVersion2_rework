@@ -30,8 +30,9 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
  * @property {string} [damageDice]      // 'damage' kind
  * @property {string} [damageType]      // 'damage' kind
  * @property {StatModifier[]} [statMods]
- * @property {number} [durationMs]     // structured, not a parsed phrase
- * @property {boolean} consumesItem
+ * @property {number} [durationMs]     // structured, not a parsed phrase; buff/debuff duration is
+ *   REPORTED by resolveConsumableEffect (consume.js) but not yet tracked by a persistent
+ *   active-effects timer — that's a separate system, not built yet.
  */
 
 /**
@@ -94,6 +95,11 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
  * @typedef {Object} ConsumableData
  * @property {'potion'|'food'|'scroll'|'thrown'|'coating'|'topical'|'other'} consumableCategory
  * @property {OnUseEffect[]} effects
+ * @property {{max: number}} uses   // how many times this item can be used before it's gone —
+ *   max:1 for a true single-use item (a shattered flask, a burned scroll). No `recharge` field
+ *   the way abilities[].uses has one — a consumable doesn't refill over a rest, it just runs out.
+ * @property {number} usesLeft      // current remaining uses; a freshly-authored/template item
+ *   starts with usesLeft === uses.max, same convention item.abilities[].usesLeft already uses.
  */
 
 /**

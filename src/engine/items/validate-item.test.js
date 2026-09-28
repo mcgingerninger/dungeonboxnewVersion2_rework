@@ -12,7 +12,7 @@ const LEATHER_ARMOR = {
 };
 const HEALING_POTION = {
   id: 'healing-potion', name: 'Potion of Healing', itemType: 'consumable', rarity: 'common',
-  consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', healDice: '2d4+2', consumesItem: true }] },
+  consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', healDice: '2d4+2' }], uses: { max: 1 }, usesLeft: 1 },
 };
 
 describe('validateItem — the three in-scope types validate cleanly', () => {
@@ -29,7 +29,7 @@ describe('validateItem — the three in-scope types validate cleanly', () => {
     const magicSword = {
       ...LONGSWORD, id: 'flame-tongue', name: 'Flame Tongue',
       passive: [{ stat: 'attackRoll', value: 1 }],
-      abilities: [{ id: 'ignite', name: 'Ignite', kind: 'active_effect', effect: { kind: 'damage', consumesItem: false }, uses: { max: 1, recharge: 'dawn' }, usesLeft: 1 }],
+      abilities: [{ id: 'ignite', name: 'Ignite', kind: 'active_effect', effect: { kind: 'damage', damageDice: '2d6', damageType: 'fire' }, uses: { max: 1, recharge: 'dawn' }, usesLeft: 1 }],
       grants: { proficiencies: { skills: ['Intimidation'] } },
     };
     assert.deepEqual(validateItem(magicSword), { valid: true, errors: [] });

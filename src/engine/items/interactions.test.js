@@ -6,12 +6,12 @@ const LONGSWORD = { itemType: 'weapon', weapon: { damageDice: '1d8', damageType:
 const THROWN_DAGGER = { itemType: 'weapon', weapon: { damageDice: '1d4', damageType: 'piercing', weaponCategory: 'simple', properties: ['thrown'] } };
 const ARTIFACT_SWORD = { itemType: 'weapon', requiresAttunement: true, weapon: LONGSWORD.weapon };
 const LEATHER_ARMOR = { itemType: 'armor', armor: { armorType: 'light', baseAC: 11, addsDexMod: true } };
-const HEALING_POTION = { itemType: 'consumable', consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', healDice: '2d4', consumesItem: true }] } };
-const SCROLL = { itemType: 'consumable', consumable: { consumableCategory: 'scroll', effects: [{ kind: 'damage', consumesItem: true }] } };
-const RATIONS = { itemType: 'consumable', consumable: { consumableCategory: 'food', effects: [{ kind: 'utility', consumesItem: true }] } };
-const ALCHEMISTS_FIRE = { itemType: 'consumable', consumable: { consumableCategory: 'thrown', effects: [{ kind: 'damage', consumesItem: true }] } };
-const POISON_COATING = { itemType: 'consumable', consumable: { consumableCategory: 'coating', effects: [{ kind: 'debuff', consumesItem: true }] } };
-const GEM = { itemType: 'consumable', consumable: { consumableCategory: 'other', effects: [{ kind: 'utility', consumesItem: false }] } };
+const HEALING_POTION = { itemType: 'consumable', consumable: { consumableCategory: 'potion', effects: [{ kind: 'heal', healDice: '2d4' }], uses: { max: 1 }, usesLeft: 1 } };
+const SCROLL = { itemType: 'consumable', consumable: { consumableCategory: 'scroll', effects: [{ kind: 'damage', damageDice: '8d6', damageType: 'fire' }], uses: { max: 1 }, usesLeft: 1 } };
+const RATIONS = { itemType: 'consumable', consumable: { consumableCategory: 'food', effects: [{ kind: 'utility' }], uses: { max: 1 }, usesLeft: 1 } };
+const ALCHEMISTS_FIRE = { itemType: 'consumable', consumable: { consumableCategory: 'thrown', effects: [{ kind: 'damage', damageDice: '1d4', damageType: 'fire' }], uses: { max: 1 }, usesLeft: 1 } };
+const POISON_COATING = { itemType: 'consumable', consumable: { consumableCategory: 'coating', effects: [{ kind: 'debuff' }], uses: { max: 1 }, usesLeft: 1 } };
+const GEM = { itemType: 'consumable', consumable: { consumableCategory: 'other', effects: [{ kind: 'utility' }], uses: { max: 3 }, usesLeft: 3 } };
 
 describe('equip', () => {
   test('applies to weapon and armor, never consumable', () => {
@@ -64,9 +64,13 @@ describe('read', () => {
 });
 
 describe('crumble', () => {
-  test('true when at least one effect consumes the item', () => {
+  test('true for any well-formed consumable — every one has a finite uses.max, none recharge', () => {
     assert.equal(canInteract(HEALING_POTION, 'crumble'), true);
-    assert.equal(canInteract(GEM, 'crumble'), false); // consumesItem: false
+    assert.equal(canInteract(GEM, 'crumble'), true); // multi-use (uses.max: 3), still eventually crumbles
+  });
+  test('false for a malformed item with no consumable.uses at all', () => {
+    const malformed = { itemType: 'consumable', consumable: { consumableCategory: 'other', effects: [{ kind: 'utility' }] } };
+    assert.equal(canInteract(malformed, 'crumble'), false);
   });
 });
 

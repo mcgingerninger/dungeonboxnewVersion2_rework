@@ -50,7 +50,10 @@ export const INTERACTIONS = {
   },
   crumble: {
     cat: 'Consumable', label: 'Crumbles When Spent',
-    default: it => it.itemType === 'consumable' && (it.consumable?.effects || []).some(e => e.consumesItem),
+    // Every consumable in this schema has a finite consumable.uses.max (no "recharges" concept —
+    // see item-schema.js's ConsumableData comment), so it eventually runs out and disappears;
+    // this just confirms the item is genuinely a well-formed consumable, not a conditional check.
+    default: it => it.itemType === 'consumable' && typeof it.consumable?.uses?.max === 'number',
   },
   throw: {
     cat: 'Combat', label: 'Throw',
