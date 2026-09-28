@@ -6,13 +6,14 @@
 //      attunement/i against flavor text; spell_focus/place/weapon_coating similarly regexed
 //      names/descriptions) — exactly the pattern this whole rebuild exists to eliminate. Every
 //      rule here reads only structured fields.
-// Narrowed to what's relevant for weapon/armor/consumable/material/tool (confirmed scope so far)
-// — the old registry's monster-part-specific material entries (weapon_material, armor_material,
-// monster_material, fleshmancer_input, wearable_part, trophy, etc.) return once a monster/NPC
-// system exists to derive them from (Phase 7.2+) — see item-schema.js's MaterialData comment.
-// craft_material/reagent below cover only the smaller, non-monster-part crafting materials this
-// batch actually has. One real gap found while re-deriving this: the old registry had no
-// interaction for scrolls at all (`consume` only ever matched potion/food) — added `read` below.
+// Narrowed to what's relevant for weapon/armor/consumable/material/tool (confirmed scope so far).
+// craft_material/reagent below key off itemType/materialTags generically, so they already cover
+// both the plain crafting materials and the real generated monster-part materials (see
+// item-schema.js's MaterialData comment and src/engine/items/monster-parts.js) with no extra
+// rules needed — a monster-part's weapon_material/armor_material tags just don't happen to trigger
+// `reagent`, same as any other non-reagent-tagged material. One real gap found while re-deriving
+// this: the old registry had no interaction for scrolls at all (`consume` only ever matched
+// potion/food) — added `read` below.
 
 export const INTERACTIONS = {
   equip: {

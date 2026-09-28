@@ -1,22 +1,18 @@
-// Base-material batch, Phase 5 of the mechanics rebuild. Same reference-data approach as the
-// other categories — sourced from the old dungeon-master-box's loot-data.js.
-//
-// Important scope note (confirmed by re-checking the reference data before building this): the
-// old app's "materials" are almost entirely monster-part-derived — MONSTER_PARTS in the old
-// monolith procedurally generates every crafting material (claws, hides, fangs, etc.) from a
-// SPECIFIC monster's anatomy at drop time, flavored per-monster (a fire elemental's "claw"
-// becomes "Ember Claw", a snake's "fang" becomes "Hollow Fang"). That entire system has no
-// equivalent to port yet, because it depends on a monster/NPC system this rebuild hasn't re-added
-// (that's Phase 7.2+ — see the plan). Rather than fake a shallow version of it now, this batch is
-// deliberately smaller: just the non-monster-part crafting materials that exist as plain static
-// catalog entries in the old data (misc items with a genuine crafting/reagent use, not tied to
-// any monster). The real monster-part material system returns once NPCs/monsters do.
+// Base-material batch, Phase 5 of the mechanics rebuild. Two sources, both from the old
+// dungeon-master-box: a small set of plain, non-monster-part crafting materials (misc catalog
+// items with a genuine crafting/reagent use), plus a real monster-part-derived batch — the old
+// app's MONSTER_PARTS/CREATURE_FAMILIES/PART_THEMES system, ported faithfully (not a shallow
+// stand-in) to src/engine/items/monster-parts.js and run against synthetic example monsters, per
+// explicit correction: "please use the old project for reference material as most of it is already
+// completed and jsut needs to be moved or modified."
 //
 // Materials have NO mechanical facets at all (confirmed facet-table rule) — pure crafting input,
 // tagged with materialTags for the crafting-related interactions (craft_material always applies;
 // reagent when tagged).
 
-export const materials = [
+import { monsterPartMaterials } from './monster-part-materials.js';
+
+const craftMaterials = [
   {
     id: 'dried-herbs', name: 'Dried Herbs (bundle)', itemType: 'material', rarity: 'common', value: '1 gp', weight: 0.5,
     flavorText: 'Dried herbs tied with twine. Possibly culinary, possibly medicinal. Substitutes for one Herbalism Kit use.',
@@ -33,3 +29,5 @@ export const materials = [
     material: { materialTags: ['craft_material'] },
   },
 ];
+
+export const materials = [...craftMaterials, ...monsterPartMaterials];

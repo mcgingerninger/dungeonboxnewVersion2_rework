@@ -104,13 +104,11 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
 
 /**
  * @typedef {Object} MaterialData
- * @property {string[]} materialTags   // generic crafting/reagent tags, e.g. 'reagent',
- *   'craft_material'. Deliberately NOT the old app's monster-part-specific tag set
- *   (weapon_material/armor_material/monster_material/fleshmancer_input/wearable_part/trophy/
- *   etc.) — those are all procedurally derived from a SPECIFIC monster's anatomy in the old app
- *   (see MONSTER_PARTS in the old monolith), which has no equivalent yet since no monster/NPC
- *   system has been re-added (that's Phase 7.2+). This batch only covers the smaller set of
- *   non-monster-part crafting materials that exist as plain static catalog entries.
+ * @property {string[]} materialTags   // crafting/reagent tags — 'reagent', 'craft_material', or
+ *   the monster-part set ('weapon_material'/'armor_material') assigned by
+ *   src/engine/items/monster-parts.js's ported family/subtype/theme system (real generated
+ *   monster-part materials, run against synthetic example monsters since no monster/NPC system
+ *   has been re-added yet — that's Phase 7.2+ for real per-encounter drops).
  */
 
 /**
