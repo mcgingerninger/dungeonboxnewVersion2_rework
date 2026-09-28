@@ -103,10 +103,27 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
  */
 
 /**
+ * @typedef {Object} MaterialData
+ * @property {string[]} materialTags   // generic crafting/reagent tags, e.g. 'reagent',
+ *   'craft_material'. Deliberately NOT the old app's monster-part-specific tag set
+ *   (weapon_material/armor_material/monster_material/fleshmancer_input/wearable_part/trophy/
+ *   etc.) — those are all procedurally derived from a SPECIFIC monster's anatomy in the old app
+ *   (see MONSTER_PARTS in the old monolith), which has no equivalent yet since no monster/NPC
+ *   system has been re-added (that's Phase 7.2+). This batch only covers the smaller set of
+ *   non-monster-part crafting materials that exist as plain static catalog entries.
+ */
+
+/**
+ * @typedef {Object} ToolData
+ * @property {string} toolCategory   // free-form category, e.g. 'weaponsmith', 'cartographer',
+ *   'musical_instrument' — not a fixed enum; 5e's own tool list is open-ended.
+ */
+
+/**
  * @typedef {Object} Item
  * @property {string} id
  * @property {string} name
- * @property {'weapon'|'armor'|'consumable'} itemType   // enum will grow later; only these 3 for now
+ * @property {'weapon'|'armor'|'consumable'|'material'|'tool'} itemType   // enum will grow later
  * @property {string} rarity        // keeps the existing loot-table rarity categories
  * @property {number} [weight]
  * @property {string} [value]       // gp, matches existing loot-table formatting
@@ -116,7 +133,10 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
  * @property {WeaponData} [weapon]        // weapon only, required for weapon
  * @property {ArmorData} [armor]          // armor only, required for armor
  * @property {ConsumableData} [consumable] // consumable only, required for consumable
- * @property {StatModifier[]} [passive]   // weapon/armor only — active purely from being equipped
+ * @property {MaterialData} [material]    // material only, required for material
+ * @property {ToolData} [tool]            // tool only, required for tool
+ * @property {StatModifier[]} [passive]   // weapon/armor/tool only — active purely from carrying/
+ *   equipping it (a masterwork tool granting a small skill bonus, e.g.)
  * @property {Ability[]} [abilities]      // weapon/armor only — activatable, charge-gated
  * @property {Grants} [grants]            // weapon/armor only — proficiencies/traits granted while equipped
  * @property {string[]} [appliedModifiers] // ids of Modifiers (see modifiers.js) baked into this instance
@@ -127,5 +147,7 @@ export function blankItem(itemType) {
   if (itemType === 'weapon') return { ...base, weapon: { damageDice: '1d6', damageType: 'bludgeoning', weaponCategory: 'simple' } };
   if (itemType === 'armor') return { ...base, armor: { armorType: 'light', baseAC: 11, addsDexMod: true } };
   if (itemType === 'consumable') return { ...base, consumable: { consumableCategory: 'potion', effects: [] } };
+  if (itemType === 'material') return { ...base, material: { materialTags: [] } };
+  if (itemType === 'tool') return { ...base, tool: { toolCategory: '' } };
   return base;
 }

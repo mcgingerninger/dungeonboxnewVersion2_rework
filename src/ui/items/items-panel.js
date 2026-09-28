@@ -7,6 +7,8 @@
 import { weapons } from '../../data/weapons.js';
 import { armor } from '../../data/armor.js';
 import { consumables } from '../../data/consumables.js';
+import { materials } from '../../data/materials.js';
+import { tools } from '../../data/tools.js';
 import { validateItem } from '../../engine/items/validate-item.js';
 import { computeItemInteractions } from '../../engine/items/interactions.js';
 import { applyModifierToItem } from '../../engine/items/modifiers.js';
@@ -55,13 +57,17 @@ function statsCell(item) {
 function categoryCell(item) {
   if (item.itemType === 'weapon') return item.weapon.weaponCategory;
   if (item.itemType === 'armor') return item.armor.armorType;
-  return item.consumable.consumableCategory;
+  if (item.itemType === 'consumable') return item.consumable.consumableCategory;
+  if (item.itemType === 'tool') return item.tool.toolCategory;
+  return 'material';
 }
 
 function propertiesCell(item) {
   if (item.itemType === 'weapon') return (item.weapon.properties || []).join(', ') || '—';
   if (item.itemType === 'armor') return item.armor.slot || '—';
-  return `${item.consumable.usesLeft}/${item.consumable.uses.max} uses`;
+  if (item.itemType === 'consumable') return `${item.consumable.usesLeft}/${item.consumable.uses.max} uses`;
+  if (item.itemType === 'material') return (item.material.materialTags || []).join(', ') || '—';
+  return '—';
 }
 
 export function mountItemsPanel(container) {
@@ -124,6 +130,8 @@ export function mountItemsPanel(container) {
         ${renderTable('Weapons', weapons)}
         ${renderTable('Armor', armor)}
         ${renderTable('Consumables', consumables)}
+        ${renderTable('Materials', materials)}
+        ${renderTable('Tools', tools)}
       </div>
     `;
     container.querySelectorAll('.items-modifier-select').forEach(sel => {
