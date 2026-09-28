@@ -26,7 +26,9 @@ export const RECHARGE_KINDS = ['short_rest', 'long_rest', 'dawn', 'charges'];
 /**
  * @typedef {Object} OnUseEffect
  * @property {'heal'|'buff'|'debuff'|'damage'|'utility'} kind
- * @property {string} [healDice]
+ * @property {string} [healDice]        // 'heal' kind
+ * @property {string} [damageDice]      // 'damage' kind
+ * @property {string} [damageType]      // 'damage' kind
  * @property {StatModifier[]} [statMods]
  * @property {number} [durationMs]     // structured, not a parsed phrase
  * @property {boolean} consumesItem

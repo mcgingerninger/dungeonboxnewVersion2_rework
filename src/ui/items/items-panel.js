@@ -6,6 +6,7 @@
 
 import { weapons } from '../../data/weapons.js';
 import { armor } from '../../data/armor.js';
+import { consumables } from '../../data/consumables.js';
 import { validateItem } from '../../engine/items/validate-item.js';
 import { computeItemInteractions } from '../../engine/items/interactions.js';
 import { applyModifierToItem } from '../../engine/items/modifiers.js';
@@ -40,16 +41,26 @@ function statsCell(item) {
     const label = a.additive ? `+${a.baseAC + passiveAc} AC` : `AC ${a.baseAC + passiveAc}${dexNote}`;
     return `${label}${reqNote}${stealthNote}`;
   }
+  if (item.itemType === 'consumable') {
+    return item.consumable.effects.map(e => {
+      if (e.kind === 'heal') return `heal ${e.healDice}`;
+      if (e.kind === 'damage') return `${e.damageDice} ${e.damageType}`;
+      return e.kind;
+    }).join(', ');
+  }
   return '—';
 }
 
 function categoryCell(item) {
-  return item.itemType === 'weapon' ? item.weapon.weaponCategory : item.armor.armorType;
+  if (item.itemType === 'weapon') return item.weapon.weaponCategory;
+  if (item.itemType === 'armor') return item.armor.armorType;
+  return item.consumable.consumableCategory;
 }
 
 function propertiesCell(item) {
   if (item.itemType === 'weapon') return (item.weapon.properties || []).join(', ') || '—';
-  return item.armor.slot || '—';
+  if (item.itemType === 'armor') return item.armor.slot || '—';
+  return item.consumable.effects.some(e => e.consumesItem) ? 'single-use' : '—';
 }
 
 export function mountItemsPanel(container) {
@@ -95,6 +106,7 @@ export function mountItemsPanel(container) {
         <p class="cs-dim">Base items only, sourced from the old project's loot-data.js where it had a mundane equivalent. Try a modifier to see the base+modifier system live.</p>
         ${renderTable('Weapons', weapons)}
         ${renderTable('Armor', armor)}
+        ${renderTable('Consumables', consumables)}
       </div>
     `;
     container.querySelectorAll('.items-modifier-select').forEach(sel => {

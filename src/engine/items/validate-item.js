@@ -51,6 +51,12 @@ export function validateItem(item) {
   if (item.itemType === 'consumable' && item.consumable) {
     if (!Array.isArray(item.consumable.effects) || !item.consumable.effects.length) {
       errors.push('consumable.effects must be a non-empty array');
+    } else {
+      item.consumable.effects.forEach((effect, i) => {
+        if (typeof effect.consumesItem !== 'boolean') errors.push(`consumable.effects[${i}].consumesItem must be a boolean`);
+        if (effect.kind === 'heal' && !effect.healDice) errors.push(`consumable.effects[${i}] is kind "heal" but has no healDice`);
+        if (effect.kind === 'damage' && (!effect.damageDice || !effect.damageType)) errors.push(`consumable.effects[${i}] is kind "damage" but is missing damageDice/damageType`);
+      });
     }
   }
 
