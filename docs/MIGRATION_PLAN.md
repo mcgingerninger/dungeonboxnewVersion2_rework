@@ -166,7 +166,45 @@ system the original audit found in `multiplayer-sync.js` other than authenticati
 one deliberately-deferred, explicitly open question: whether Firebase Auth stays permanently or is
 ever replaced is not yet decided and not scoped as any particular future phase.
 
-## Phase 6+ — Dungeon Master Box deployment (not started, not yet scoped in detail)
+## Phase 6 — Frontend wiring ✅ complete (this section was stale — see correction below)
 
-Packaging the evolved application so a DM can run it locally with no cloud dependency — the
-"Dungeon Master Box" this repository is named for.
+This section previously read "not started, not yet scoped in detail." That was out of date: Phase
+6 (wiring `multiplayer-sync.js`/the monolith against the Phase 5 WebSocket backend, static file
+serving, room-code identity, viewed-player spectator, player removal, LAN reachability, real-time
+gambling sync, and packaging — Windows auto-start, auto-update) was carried out and completed, in
+sub-phases 6a–6k. Full account: `docs/ARCHITECTURE.md`'s "Phase 6: Frontend Wiring" section.
+
+## Superseded: this plan's arc ends here
+
+Everything above (Phase 0 through Phase 6) is real, completed work on the original monolith app.
+After it, an **approved, separately-numbered rebuild plan** replaced this document's remaining
+direction: rather than continuing to evolve the monolith HTML file in place, a decision was made to
+strip it and rebuild the mechanics layer from scratch as proper modules (`src/engine/`), reusing the
+`server/`/`db/`/`game-engine.js`/`multiplayer-sync.js` backend Phases 1–6 above already built. That
+rebuild is **not documented in this file** — it was never folded back into this plan document, only
+recorded via its own commit messages and (as of this correction) `docs/ARCHITECTURE.md`'s "Ground-Up
+Mechanics Rebuild" section, which is the authoritative source for it. In that rebuild's own
+numbering (independent of the Phase 0–6 above, easy to confuse with it):
+
+- **Rebuild Phase 0** ✅ — strip the monolith HTML + content data files, add Vite scaffolding.
+- **Rebuild Phase 1** ✅ — dice engine (`src/engine/dice/dice.js`).
+- **Rebuild Phase 2** ✅ — character/rules foundation (ability scores, HP, AC, skills/saves, spell
+  slots, structured traits, speed/size/alignment/proficiency bonus).
+- **Rebuild Phase 3** ✅ — combat engine core (unified `resolveAttack`, server-authoritative,
+  persisted combat state).
+- **Rebuild Phase 4** ✅ — item schema, validation, interactions, base-item + modifier system
+  (weapon/armor/consumable only).
+- **Rebuild Phase 5** ✅ — item content batches: weapons, armor, consumables (with real
+  charges/effect resolution), materials, tools, and the monster-part family/theme system. The
+  broader magic-item modifier pool was audited and explicitly paused (open design question,
+  documented in `src/engine/items/modifiers.js` and a project memory).
+- **Rebuild Phase 6** ✅ — real inventory/equip (equip/unequip, computed AC from gear, item
+  abilities wired to the consumable effect engine).
+- **Not yet started**: `wondrous`/quest/treasure/document item types; any monster/NPC system;
+  Battlefield, Journey encounters, Puzzles, NPC tab, Map Builder, Store, Gambling, DM Controls, or
+  an equivalent to the old account/login UI, rebuilt on this new engine. None of this exists in
+  `src/` yet — it exists only in the pre-strip monolith's design/history.
+
+For current state and the next concrete step, see `docs/NEXT_SESSION_BRIEF.md` (kept in sync with
+this rebuild, not the packaging plan above) and `docs/ARCHITECTURE.md`'s rebuild section for full
+phase-by-phase detail and decisions made along the way.

@@ -2064,3 +2064,232 @@ its own). Verified live: riddle cards show their hook above the reveal button; e
 gone from both the tab bar and `puzzleCategoryData`; the five reframed cipher titles (The Tunnel
 Chant, The Fallen King's Elegy, The Tunnel Forks, The Garrison Banners, The Warden's Proclamation)
 render correctly in place of their originals.
+
+---
+
+# Ground-Up Mechanics Rebuild (supersedes the "Phase 6+ deployment" direction above)
+
+**Everything above this line documents real, completed work on the original monolith app**
+(`dungeon_loot_wheel_v102_spell_details.html`) **and its Phase 1–6 backend-wiring migration** (game
+engine extraction, SQLite, the Node server, server-authoritative gambling, WebSocket multiplayer,
+then wiring `multiplayer-sync.js`/the monolith against that backend, packaging, and a run of
+content/UX passes on top). That work is real and this app's git history back through `8939d4c` is
+its record — it is not being discarded or rewritten here.
+
+**What changed:** after that work, a separate, approved plan launched a ground-up rebuild of the
+mechanics layer, starting from commit `a1bb69d` ("Phase 0: strip the monolith HTML and all content
+data files"). This is a **new, independently-numbered Phase 0–6** — not a continuation of the
+Phase 1–6 numbering above, and easy to confuse with it since both used the same phase-number labels
+for different work. `server/`, `db/`, `game-engine.js`, and `multiplayer-sync.js` — i.e. everything
+the Phase 1–6 backend-wiring work above built — were deliberately left in place and are being reused
+as the new engine's backend; only the monolith HTML and its content data files (`loot-data.js`,
+`npc-data.js`, `cult-data.js`, `journey-data.js`, `reference-data.js`, `trap-data.js`,
+`puzzle-data.js`) were removed. The two efforts share one continuous git history; they are not two
+separate repos merged together.
+
+## Rebuild Phase 0 — Vite scaffolding and proof-of-life
+
+Replaced the old redirect-stub `index.html` with a real Vite entry point, added `vite.config.js`
+(dev-server proxy for the backend's `/campaigns` REST routes and the WebSocket upgrade, both
+unprefixed rather than behind a guessed `/api` prefix), and a minimal `src/main.js` that creates a
+campaign and confirms it round-trips through the server's SQLite database — proving Vite, the Node
+backend, and SQLite persistence are genuinely wired together before any real engine/UI work starts.
+`server/start.js`'s `STATIC_ROOT` now defaults to `dist/` (Vite's build output) for a future
+production run; dev mode never touches this path since Vite's own dev server serves the frontend
+directly. Verified live: `npm run dev:all` starts both processes and the skeleton page created two
+campaigns with a growing total count. 211 tests passing at this point.
+
+## Rebuild Phase 1 — Dice engine
+
+`src/engine/dice/dice.js`: pure, dependency-free dice primitives — `rollInt` (injectable-rand
+inclusive random integer), `rollD20` (advantage/disadvantage by rolling twice and keeping the
+natural high/low), `parseDiceNotation` (`NdM+K`, returns `null` rather than throwing on bad input),
+`rollDamage` (doubles dice count, not the flat modifier, on a crit — the standard 5e rule). Every
+function takes an injectable rand source defaulting to `Math.random`, matching `game-engine.js`'s
+existing `rn()`/`battleRollDamage` convention. 18 new tests; full suite (229 tests) run 40
+consecutive times with zero failures given the statistical distribution checks involved.
+
+## Rebuild Phase 2 — Character/rules foundation
+
+Adds a real player stat sheet before any item exists, per the rebuild plan's mechanics-first
+ordering:
+- `src/engine/character/ability-scores.js`: `ABILITY_NAMES`, `SKILL_ABILITY_MAP` (the 18 standard
+  skills), `abilityModifier`, `proficiencyBonusForLevel` — ported as-is from `game-engine.js` (this
+  math was never what the original audit flagged as broken).
+- `src/engine/character/hp.js`: `computeMaxHp(level, hitDieSize, conModifier)` — real
+  hit-dice-based HP, replacing the old app's three disconnected freeform level/maxHp/"hit dice
+  label" fields.
+- `src/engine/character/stat-modifiers.js`: a generic `{stat, value}` `StatModifier` aggregator,
+  shared by traits now and by item passive effects later.
+- `src/engine/character/character-sheet.js`: `computeDerivedSheet` ties it together — ability
+  modifiers, proficiency bonus, derived max HP, derived AC (10 + Dex; armor comes in Phase 6),
+  skill/save bonuses, all trait-statMod-aware.
+
+Traits are structured with real mechanical effects (`{id, name, description, statMods}`), consumed
+by `computeDerivedSheet` exactly like item passive effects consume their own `statMods` later.
+`db/schema.js`'s `characters` table: replaced the freeform `hit_dice` TEXT label with structured
+`hit_die_size`, added `skill_expertise`, `spell_slots_max`/`spell_slots_used` (per-level JSON maps,
+DM/player-set directly, no class-derived progression table), and `traits` (JSON). A vanilla-DOM
+character sheet (`src/ui/character-sheet/character-sheet.js`) mounts via `src/main.js`, replacing
+Phase 0's proof-of-life button. 23 new tests; full suite (252 tests) run 15 consecutive times clean.
+
+**Phase 2 addendum** — speed (defaults 30 ft., `computeDerivedSheet` returns a separate
+`effectiveSpeed`, never written back into the stored base), creature size (6 standard D&D sizes),
+alignment (9 standard alignments plus a blank "unset"), and `proficiency_bonus` promoted from a pure
+computed display to a directly stored, directly editable field (falls back to the standard
+level-derived value only when genuinely absent — an explicit value, including 0, always wins). Full
+suite 257 tests.
+
+## Rebuild Phase 3 — Combat engine core
+
+Replaces the old app's three disconnected attack code paths (DM-rolls-monster, a standalone player
+weapon-roll calculator that never touched HP, a DM-review attack-request queue) with one
+`resolveAttack` pipeline (`src/engine/combat/attack.js`) used identically for player-vs-monster,
+monster-vs-player, or monster-vs-monster. Initial version graded hit margin into
+Devastating/Strong/Solid/Weak/Miss damage tiers; **a same-day fix** replaced that with the plain
+5e roll-vs-AC check the user actually wanted, where AC acts as a direct modifier on damage (however
+far the roll clears AC is added straight onto damage; a crit still just doubles dice, not scaled by
+margin, since a natural 20 can force a hit against an AC the attacker's own bonus wouldn't have
+cleared). `outcome` is a plain Fumble/Miss/Hit/Critical Hit label; `margin` is still returned for a
+possible future effects system.
+
+Server-side (`server/websocket.js`): new `push_combat_state` (DM wholesale-replaces the
+roster/active/round) and `combat_attack` (either side may trigger their own PC's attack) messages.
+`combat_attack` resolves server-side using the server's own copy of both combatants' state — never
+a client-supplied roll. Combat state lives in a new `combat` `campaign_state` subsystem bucket.
+Minimal combat UI (`src/ui/combat/combat-panel.js`) — roster table, HP bars, add-monster form,
+attacker/target selectors, attack button, log; deliberately correctness-over-polish (initiative,
+advantage/disadvantage controls, and a real DM Controls tab are later-phase work). This panel
+identifies over WebSocket using its own fixed `demo-pc`/`dm` test account rather than the Character
+Sheet's solo/guest slot, since the identify protocol needs a real non-empty `accountUid` and
+bridging that with the solo slot's NULL `account_uid` is real design work deferred to the
+DM-Controls/multiplayer porting work, not something improvised here. 16 engine tests + 8 server
+integration tests; full suite 281 tests, various sub-suites run 20–40 consecutive times clean given
+the real-randomness components.
+
+## Rebuild Phase 4 — Item schema, validation, interactions, base-item + modifier system
+
+Scoped to weapon/armor/consumable only, per explicit request — material/tool/wondrous/quest/
+treasure deferred until their own subcategories get discussed.
+- `src/engine/items/item-schema.js`: typedefs and vocab constants. Every mechanical value is a real
+  typed field; `flavorText` is display-only and never parsed. `StatModifier` gained
+  `attackRoll`/`damageRoll` targets; a new `Grants` shape covers non-numeric effects (an item
+  granting a skill/save/weapon-or-armor proficiency outright, or a full trait, reusing Phase 2's
+  trait shape so it flows through `computeDerivedSheet`'s existing math).
+- `src/engine/items/validate-item.js`: structurally enforces a facet table (weapon requires
+  `weapon`, allows passive/abilities/grants, never armor or onUse; armor is the mirror; consumable
+  requires `consumable`, allows nothing else) — "swords don't have AC" is now a validation failure,
+  not a convention nobody checks.
+- `src/engine/items/interactions.js`: re-derived (not ported verbatim) against the new schema,
+  narrowed to the ~11 entries relevant to weapon/armor/consumable. Found and fixed a real gap while
+  re-deriving: the old registry had no interaction for scrolls at all — added `read`.
+- `src/engine/items/modifiers.js`: the requested scalable base-item + modifier system instead of
+  hand-authored unique magic items. `applyModifierToItem` clones a base item and merges a reusable,
+  rarity-tagged `Modifier`'s effects in; `applyModifiers` sequences several, skipping (and
+  reporting) any incompatible with the item's type rather than throwing. Exact rarity-to-
+  modifier-count scaling deferred to Phase 5, once the real loot-generation algorithm is audited.
+
+36 new tests, all passing on first run (pure deterministic logic). Full suite 317 tests, no UI
+changes this phase.
+
+## Rebuild Phase 5 — Item content batches (weapons, armor, consumables, materials, tools)
+
+Base items only, sourced from the (pre-strip) monolith's `loot-data.js` as reference material —
+confirmed each time as the correct reference project, distinct from the older, less-current
+"Dungeon Loot Tool" also present. General pattern across every batch: ground new base items in
+real mundane entries from the reference data rather than inventing numbers, and log explicitly
+where the reference data didn't have a plain (non-magical) version of something so the
+extrapolation is visible rather than silent.
+
+- **Weapons** (7 → 14 after a fix): the first pass only read half the reference tier and missed a
+  block of mundane martial weapons; redone against the complete tier. Final 14: 9 simple + 5
+  martial. A material-variant naming convention ("Iron Mace" → "Mace") was established here — a
+  material prefix reads as Modifier-system territory, not a distinct base item.
+- **Armor** (4 → 9 after the same fix): light/medium/heavy/shield all represented; heavy armor and
+  shields never add a Dex modifier, light/medium do, medium caps its bonus. Schema gained
+  `strengthRequirement`/`stealthDisadvantage` and an explicit `additive` boolean (shield/accessory
+  pieces add to existing armor AC; body armor replaces the base-10 formula) once multiple real
+  additive items existed at once.
+- `src/ui/items/items-panel.js`: a live item browser (new Items tab) — renders real computed
+  interactions per item and lets a test modifier be applied to see base+modifier composition work
+  against real data.
+- **Consumables** (7 base items): unlike weapons/armor, the reference data does NOT model potions
+  as base+modifier — each healing tier is its own separate catalog entry — so this batch mirrors
+  that directly. `OnUseEffect` gained `damageDice`/`damageType`. Two items (Vial of Antitoxin,
+  Corked Vial of Spirits) have real "advantage on X" effects not representable by the current
+  numeric `StatModifier` vocabulary — left with empty `statMods` and the real effect in
+  `flavorText` rather than a wrong numeric approximation (same gap as the modifier-pool pause
+  below).
+- **Real charges/uses + effect resolution**, pulled forward from its originally-planned later slot
+  after the user asked directly whether a Greater Healing potion would actually heal HP (it didn't
+  yet). Replaced a boolean `consumesItem` with real `consumable.uses`/`usesLeft`. New
+  `src/engine/items/consume.js` — `resolveConsumableEffect`/`useConsumable`, the consumable-side
+  counterpart to `attack.js`'s `resolveAttack`: rolls heal/damage dice for real, reports new HP
+  (clamped), decrements `usesLeft`, pure and side-effect-free. Wired into the Items tab with a Demo
+  Target HP bar and a Use button so this is provably functional in the running app.
+- **Modifier pool audit — paused, not built**: an audit of the old catalog's magic-item modifiers
+  found a real, reusable pool (enhancement tiers +1..+5, three structural materials, elemental
+  on-hit variants, Masterwork, several triggered-on-hit/on-crit bolt-ons) — but most of it isn't
+  numeric, and extending `Modifier` to express it raises an open design question (a loose
+  `flags: string[]` catch-all vs. a fuller typed triggered-effect system) that the user asked to
+  hold off deciding. Documented as a `PENDING` block at the top of `modifiers.js`,
+  `items-panel.js`'s `PREVIEW_MODIFIERS` marked explicitly temporary, plus a project memory so this
+  resurfaces even across a session boundary. **Still open — check before extending the modifier
+  system further.**
+- **Materials** (3) **and tools** (5): two new item types (`material`/`tool`) — material allows no
+  mechanical facets at all (pure crafting input), tool allows an optional passive facet (a
+  hypothetical masterwork tool). Confirmed before building that the old app's materials are almost
+  entirely monster-part-derived (procedurally generated from a specific monster's anatomy at drop
+  time) — that system had no equivalent yet, so only the smaller set of plain static
+  crafting-material/tool catalog entries were ported here; documented rather than faked.
+- **Monster-part family/theme system ported**: replaced an earlier flat stand-in with a faithful
+  port of the old app's `CREATURE_FAMILIES`/`CREATURE_SUBTYPES`/`PART_THEMES`/`MONSTER_PARTS`
+  system (`src/engine/items/monster-parts.js`) — 16 creature families, named subtypes, ~20
+  anatomy-eligible part definitions with per-monster variant naming. Only combine-mode parts feed
+  material generation right now; equip-mode parts (a real passive bonus) belong to the `wondrous`
+  item type, still deferred. Run against synthetic example monsters
+  (`src/data/example-monsters.js`, since no monster/NPC system exists yet) to produce 4 curated
+  generated materials.
+
+Full suite reached 415 tests across this phase's batches (some later superseded/consolidated by
+Phase 6's own additions — see current `node --test` output for the live count, not this historical
+figure).
+
+## Rebuild Phase 6 — Real inventory/equip
+
+Ports the old app's `SLOT_CATEGORY`/`collectEquippedAcBreakdown` structure (scoped to the slots
+weapon/armor items can target today) rather than inventing a new equip model: body armor replaces
+the base-10 AC formula and gates Dex per `addsDexMod`/`dexModCap`; everything else additive
+(shield/helm/gauntlets/greaves/boots) adds its own `baseAC` on top.
+- `src/engine/character/equipment.js`: `equipItem`/`unequipSlot` (two-handed weapons mirror both
+  hand slots), `computeEquippedArmorClass`, and `computeDerivedSheetWithEquipment`, which merges
+  equipped items' passive `StatModifier`s into `computeDerivedSheet`'s existing trait pipeline —
+  every non-AC bonus (ability scores, skills, saves, HP, speed, attack/damage rolls) already worked
+  for free through that reuse. Fixed a real Phase 2 gap surfaced by that reuse: an
+  ability-abbreviation `StatModifier` was documented to bump the derived modifier but never
+  actually did.
+- `src/engine/items/abilities.js`: `activateAbility`, reusing `consume.js`'s
+  `resolveConsumableEffect` for an item's `abilities[]` facet instead of duplicating
+  effect-resolution logic.
+- `db/schema.js`: `characters.inventory`/`equipped_slots` JSON columns, added directly to the
+  `characters` table.
+- `src/data/catalog.js`: a single id → `Item` lookup across all data files.
+- `src/ui/inventory/inventory-panel.js`: real Inventory tab wired to the same persisted character
+  as the Character Sheet tab — equip/unequip updates AC live, Use actually heals/damages real HP
+  and persists `usesLeft`, Activate is wired for any future item with a real `abilities[]` facet.
+
+Verified live: equipping Plate Armor + a Wooden Shield took AC 10 → 16 → 18; potions moved real HP
+down then back up and persisted `0/1` uses through a reload; unequipping armor dropped AC back to
+12. This is the most recent commit on the branch as of this writing (`7edf189`).
+
+## Where this actually stands today (verify against `node --test` / the running app, not this doc)
+
+Four UI tabs exist and are wired to the persisted backend: Character Sheet, Combat (live over
+WebSocket against `server/websocket.js`), Items (browser/test harness), Inventory (real equip/use).
+Nothing from the older Phase-6-Frontend-Wiring feature set above (Battlefield, Journey encounters,
+Puzzles, NPCs, Map Builder, Store, Gambling, DM Controls, the Firebase-era account/login UI, the
+packaged Windows auto-start/auto-update installer) has been rebuilt on this new engine yet — those
+systems exist only in the old monolith's design/history, not in `src/`. The `server/`, `db/`, and
+`multiplayer-sync.js` backend from the Phase 1–6 work above is being reused as-is/extended, not
+rebuilt. See `docs/MIGRATION_PLAN.md` for the (now superseded) original plan and
+`docs/NEXT_SESSION_BRIEF.md` for the current accurate handoff.
